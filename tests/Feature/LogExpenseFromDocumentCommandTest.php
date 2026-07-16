@@ -117,4 +117,43 @@ class LogExpenseFromDocumentCommandTest extends TestCase
 
         ExpenseExtractor::assertNeverPrompted();
     }
+
+    public function test_an_empty_description_is_rejected_before_extraction_is_attempted(): void
+    {
+        ImportedDocumentReader::fake(['']);
+
+        $this->artisan('assistant:log-expense-from-document', ['text' => self::IMPORTED_TEXT])
+            ->expectsOutputToContain('did not contain a recognizable expense')
+            ->assertExitCode(1);
+
+        ExpenseExtractor::assertNeverPrompted();
+    }
+
+    public function test_a_reader_failure_is_reported_instead_of_crashing_the_command(): void
+    {
+        ImportedDocumentReader::fake(function () {
+            throw new \RuntimeException('simulated provider outage');
+        });
+
+        $this->artisan('assistant:log-expense-from-document', ['text' => self::IMPORTED_TEXT])
+            ->expectsOutputToContain('The imported text could not be read: simulated provider outage')
+            ->assertExitCode(1);
+
+        ExpenseExtractor::assertNeverPrompted();
+    }
+
+    public function test_an_extractor_failure_is_reported_instead_of_crashing_the_command(): void
+    {
+        ImportedDocumentReader::fake([
+            'A restaurant charge of $38.20 dated 2026-07-14.',
+        ]);
+
+        ExpenseExtractor::fake(function () {
+            throw new \RuntimeException('simulated provider outage');
+        });
+
+        $this->artisan('assistant:log-expense-from-document', ['text' => self::IMPORTED_TEXT])
+            ->expectsOutputToContain('The expense extractor could not be reached: simulated provider outage')
+            ->assertExitCode(1);
+    }
 }

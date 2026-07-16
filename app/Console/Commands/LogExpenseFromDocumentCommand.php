@@ -62,7 +62,19 @@ class LogExpenseFromDocumentCommand extends Command
     {
         $importedText = $this->argument('text');
 
-        $description = (new ImportedDocumentReader)->prompt($importedText)->text;
+        try {
+            $description = (new ImportedDocumentReader)->prompt($importedText)->text;
+        } catch (\Throwable $e) {
+            $this->components->error("The imported text could not be read: {$e->getMessage()}");
+
+            return Command::FAILURE;
+        }
+
+        if (trim($description) === '') {
+            $this->components->error('The imported text did not contain a recognizable expense.');
+
+            return Command::FAILURE;
+        }
 
         if ($this->looksLikeALeakedInstruction($description)) {
             $this->components->error('The imported text could not be processed safely and was discarded.');
@@ -156,7 +168,13 @@ class LogExpenseFromDocumentCommand extends Command
         $prompt = $description;
 
         for ($attempt = 1; $attempt <= self::MAX_ATTEMPTS; $attempt++) {
-            $response = (new ExpenseExtractor)->prompt($prompt);
+            try {
+                $response = (new ExpenseExtractor)->prompt($prompt);
+            } catch (\Throwable $e) {
+                $this->components->error("The expense extractor could not be reached: {$e->getMessage()}");
+
+                return Command::FAILURE;
+            }
 
             $errors = $this->validate($response->structured);
 

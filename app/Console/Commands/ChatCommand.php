@@ -9,6 +9,7 @@ use Illuminate\Console\Command;
 use Laravel\Ai\Messages\AssistantMessage;
 use Laravel\Ai\Messages\Message;
 use Laravel\Ai\Messages\UserMessage;
+use Laravel\Ai\Streaming\Events\TextDelta;
 
 use function Laravel\Prompts\info;
 use function Laravel\Prompts\outro;
@@ -28,6 +29,8 @@ class ChatCommand extends Command
      *
      * Only the most recent messages are sent on each turn: older ones are
      * dropped from the request once the history exceeds the sliding window.
+     * The reply is streamed, so it is printed chunk by chunk as it arrives
+     * instead of only once the model has finished generating it.
      */
     public function handle(): void
     {
@@ -45,19 +48,25 @@ class ChatCommand extends Command
 
             $agent = (new FinanceAssistant)->withHistory($this->slidingWindow($history));
 
-            $response = $agent->prompt($question);
+            $stream = $agent->stream($question);
 
-            $this->line($response->text);
+            foreach ($stream as $event) {
+                if ($event instanceof TextDelta) {
+                    $this->output->write($event->delta);
+                }
+            }
+
+            $this->newLine();
 
             $history[] = new UserMessage($question);
-            $history[] = new AssistantMessage($response->text);
+            $history[] = new AssistantMessage($stream->text);
 
             $this->comment(sprintf(
                 'history: %d messages (%d sent) | prompt tokens: %d | completion tokens: %d',
                 count($history),
                 count($this->slidingWindow($history)),
-                $response->usage->promptTokens,
-                $response->usage->completionTokens,
+                $stream->usage->promptTokens,
+                $stream->usage->completionTokens,
             ));
         }
 

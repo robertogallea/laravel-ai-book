@@ -96,6 +96,47 @@ Tags for this chapter:
   git diff ch02-generic-instructions ch02-structured-instructions
   ```
 
+## Chapter 3 - structured output and format reliability
+
+```bash
+php artisan assistant:log-expense "I spent 42.50 dollars at a restaurant on 2026-07-16"
+```
+
+The assistant restates the expense in prose, and the command then tries to pull amount,
+category, and date back out of that prose with ad hoc parsing. This works for phrasing the
+parser anticipated, and breaks on anything else:
+
+- "I spent forty two dollars at a restaurant" (spelled-out amount: the parser only looks for a
+  digit followed by "dollars", so it misses this entirely)
+- "I spent 12 dollars at a coffee shop" (the category is real, but not one of the parser's
+  hardcoded keywords)
+- "I spent 12 dollars on groceries yesterday" (a relative date instead of the exact `YYYY-MM-DD`
+  form the parser expects)
+
+```bash
+php artisan assistant:log-expense "I spent 42.50 dollars at a restaurant, no date given"
+```
+
+The corrected version asks for the same three fields as a schema-constrained structured
+response instead of prose to parse. The schema does not guarantee conformance by itself: the
+reply is validated in code, an invalid or incomplete response triggers a corrective follow-up
+naming exactly what was wrong, up to a bounded number of attempts, and an explicit fallback
+message is shown once those attempts are exhausted. Compare the same missing-date input against
+both tagged versions to see the shift from "silently unparseable" to "explicitly corrected or
+explicitly refused."
+
+Tags for this chapter:
+
+- `ch03-freetext-expense-parsing` - the assistant's prose reply is parsed with regex and keyword
+  matching; breaks on phrasing outside what the parser anticipated.
+- `ch03-structured-expense-extraction` - the same extraction requested as a schema-constrained
+  structured response, validated in code with a bounded retry and an explicit fallback. Compare
+  the two with:
+
+  ```bash
+  git diff ch03-freetext-expense-parsing ch03-structured-expense-extraction
+  ```
+
 ## Tag convention
 
 Tags follow `chNN-slug`, where `NN` is the two-digit chapter number. Multiple tags are added per

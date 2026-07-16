@@ -7,10 +7,10 @@ use Tests\TestCase;
 
 class LogExpenseCommandTest extends TestCase
 {
-    public function test_it_extracts_a_cleanly_phrased_expense(): void
+    public function test_it_extracts_a_valid_expense_on_the_first_attempt(): void
     {
         ExpenseExtractor::fake([
-            'Amount: 42.50 dollars, Category: restaurants, Date: 2026-07-16',
+            ['amount' => 42.50, 'category' => 'restaurants', 'date' => '2026-07-16'],
         ]);
 
         $this->artisan('assistant:log-expense', ['description' => 'I spent 42.50 dollars at a restaurant on 2026-07-16'])
@@ -18,38 +18,32 @@ class LogExpenseCommandTest extends TestCase
             ->expectsOutputToContain('Category: restaurants')
             ->expectsOutputToContain('Date: 2026-07-16')
             ->assertExitCode(0);
+
+        ExpenseExtractor::assertPrompted(fn ($prompt) => $prompt->contains('I spent 42.50 dollars'));
     }
 
-    public function test_it_fails_to_parse_an_amount_spelled_out_in_words(): void
+    public function test_it_retries_once_and_recovers_from_a_missing_field(): void
     {
         ExpenseExtractor::fake([
-            'Amount: forty two dollars, Category: restaurants, Date: 2026-07-16',
+            ['amount' => 42.50, 'category' => 'restaurants'],
+            ['amount' => 42.50, 'category' => 'restaurants', 'date' => '2026-07-16'],
         ]);
 
-        $this->artisan('assistant:log-expense', ['description' => 'I spent forty two dollars at a restaurant'])
-            ->expectsOutputToContain('Could not parse amount')
-            ->assertExitCode(1);
+        $this->artisan('assistant:log-expense', ['description' => 'I spent 42.50 dollars at a restaurant, no date given'])
+            ->expectsOutputToContain('Date: 2026-07-16')
+            ->assertExitCode(0);
+
+        ExpenseExtractor::assertPrompted(fn ($prompt) => $prompt->contains('date is missing'));
     }
 
-    public function test_it_fails_to_parse_a_category_not_in_its_keyword_list(): void
+    public function test_it_falls_back_after_exhausting_every_attempt(): void
     {
-        ExpenseExtractor::fake([
-            'Amount: 12 dollars, Category: coffee shop, Date: 2026-07-16',
-        ]);
+        $invalid = ['amount' => 42.50, 'category' => 'restaurants'];
 
-        $this->artisan('assistant:log-expense', ['description' => 'I spent 12 dollars at a coffee shop'])
-            ->expectsOutputToContain('Could not parse category')
-            ->assertExitCode(1);
-    }
+        ExpenseExtractor::fake([$invalid, $invalid, $invalid]);
 
-    public function test_it_fails_to_parse_a_relative_date(): void
-    {
-        ExpenseExtractor::fake([
-            'Amount: 12 dollars, Category: groceries, Date: yesterday',
-        ]);
-
-        $this->artisan('assistant:log-expense', ['description' => 'I spent 12 dollars on groceries yesterday'])
-            ->expectsOutputToContain('Could not parse date')
+        $this->artisan('assistant:log-expense', ['description' => 'I spent 42.50 dollars at a restaurant, no date given'])
+            ->expectsOutputToContain('after 3 attempts')
             ->assertExitCode(1);
     }
 }

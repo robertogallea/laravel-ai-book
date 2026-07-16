@@ -12,97 +12,78 @@ use Illuminate\Console\Command;
 class LogExpenseCommand extends Command
 {
     /**
-     * The categories the naive parser below knows how to recognize.
-     *
-     * This is deliberately a plain keyword list, not a schema: it is the
-     * fragile, free-text-parsing version of this command, and is meant to
-     * break on wording it was not written to expect.
-     *
-     * @var string[]
+     * How many times to ask the model again after an invalid structured
+     * response, before giving up. Bounded on purpose: correcting a bad
+     * response is worth a few attempts, not an unlimited number of them.
      */
-    private const CATEGORIES = [
-        'groceries', 'restaurants', 'transportation', 'entertainment', 'utilities',
-    ];
+    private const MAX_ATTEMPTS = 3;
 
     /**
      * Execute the console command.
      *
-     * Asks the assistant to restate the expense in prose, then tries to pull
-     * amount, category, and date back out of that prose with ad hoc parsing.
-     * This is the version the rest of the chapter's example builds on: it
-     * works for phrasing the parser anticipated, and breaks silently or
-     * loudly otherwise.
+     * Asks the assistant for a schema-constrained structured response, then
+     * validates it in code before trusting it: the schema makes conformance
+     * likely, not certain. An invalid response is corrected with a targeted
+     * follow-up naming exactly what was wrong, up to a bounded number of
+     * attempts, with an explicit fallback once those are exhausted.
      */
     public function handle(): int
     {
         $description = $this->argument('description');
+        $prompt = $description;
 
-        $reply = (new ExpenseExtractor)->prompt($description)->text;
+        for ($attempt = 1; $attempt <= self::MAX_ATTEMPTS; $attempt++) {
+            $response = (new ExpenseExtractor)->prompt($prompt);
 
-        $amount = $this->extractAmount($reply);
-        $category = $this->extractCategory($reply);
-        $date = $this->extractDate($reply);
+            $errors = $this->validate($response->structured);
 
-        $missing = array_keys(array_filter([
-            'amount' => $amount === null,
-            'category' => $category === null,
-            'date' => $date === null,
-        ]));
+            if (empty($errors)) {
+                $this->line("Amount: {$response->structured['amount']}");
+                $this->line("Category: {$response->structured['category']}");
+                $this->line("Date: {$response->structured['date']}");
 
-        if (! empty($missing)) {
-            $this->components->error(sprintf(
-                'Could not parse %s from the assistant\'s reply: "%s"',
-                implode(', ', $missing),
-                $reply,
-            ));
-
-            return Command::FAILURE;
-        }
-
-        $this->line("Amount: {$amount}");
-        $this->line("Category: {$category}");
-        $this->line("Date: {$date}");
-
-        return Command::SUCCESS;
-    }
-
-    /**
-     * Look for a number immediately followed by the word "dollars".
-     */
-    private function extractAmount(string $text): ?float
-    {
-        if (preg_match('/(\d+(?:\.\d{1,2})?)\s*dollars/i', $text, $matches)) {
-            return (float) $matches[1];
-        }
-
-        return null;
-    }
-
-    /**
-     * Look for one of the known category keywords anywhere in the text.
-     */
-    private function extractCategory(string $text): ?string
-    {
-        $lower = strtolower($text);
-
-        foreach (self::CATEGORIES as $category) {
-            if (str_contains($lower, $category)) {
-                return $category;
+                return Command::SUCCESS;
             }
+
+            $prompt = sprintf(
+                'The previous extraction was invalid: %s. The expense was: "%s". Try again.',
+                implode(', ', $errors),
+                $description,
+            );
         }
 
-        return null;
+        $this->components->error(sprintf(
+            'Could not extract a valid expense after %d attempts. Please rephrase and try again.',
+            self::MAX_ATTEMPTS,
+        ));
+
+        return Command::FAILURE;
     }
 
     /**
-     * Look for a date already written in YYYY-MM-DD form.
+     * Check a structured response against the same constraints declared in
+     * the schema. The package does not enforce these itself, so the
+     * application checks them before trusting the response.
+     *
+     * @param  array<string, mixed>  $structured
+     * @return string[]
      */
-    private function extractDate(string $text): ?string
+    private function validate(array $structured): array
     {
-        if (preg_match('/\b(\d{4}-\d{2}-\d{2})\b/', $text, $matches)) {
-            return $matches[1];
+        $errors = [];
+
+        if (! array_key_exists('amount', $structured) || ! is_numeric($structured['amount'])) {
+            $errors[] = 'amount is missing or not numeric';
         }
 
-        return null;
+        if (! array_key_exists('category', $structured) || ! in_array($structured['category'], ExpenseExtractor::CATEGORIES, true)) {
+            $errors[] = 'category is missing or not one of: '.implode(', ', ExpenseExtractor::CATEGORIES);
+        }
+
+        if (! array_key_exists('date', $structured) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $structured['date'])) {
+            $errors[] = 'date is missing or not in YYYY-MM-DD format';
+        }
+
+        return $errors;
     }
 }

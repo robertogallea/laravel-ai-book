@@ -19,10 +19,15 @@ use function Laravel\Prompts\text;
 class ChatCommand extends Command
 {
     /**
+     * Maximum number of past messages kept in the sliding window sent to the model.
+     */
+    private const MAX_HISTORY_MESSAGES = 8;
+
+    /**
      * Execute the console command.
      *
-     * Every turn is sent together with the entire conversation history so far:
-     * there is no limit on how large that history is allowed to grow.
+     * Only the most recent messages are sent on each turn: older ones are
+     * dropped from the request once the history exceeds the sliding window.
      */
     public function handle(): void
     {
@@ -38,7 +43,7 @@ class ChatCommand extends Command
                 break;
             }
 
-            $agent = (new FinanceAssistant)->withHistory($history);
+            $agent = (new FinanceAssistant)->withHistory($this->slidingWindow($history));
 
             $response = $agent->prompt($question);
 
@@ -48,13 +53,26 @@ class ChatCommand extends Command
             $history[] = new AssistantMessage($response->text);
 
             $this->comment(sprintf(
-                'history: %d messages | prompt tokens: %d | completion tokens: %d',
+                'history: %d messages (%d sent) | prompt tokens: %d | completion tokens: %d',
                 count($history),
+                count($this->slidingWindow($history)),
                 $response->usage->promptTokens,
                 $response->usage->completionTokens,
             ));
         }
 
         outro('Conversation ended.');
+    }
+
+    /**
+     * Keep only the most recent messages, dropping older ones once the
+     * history grows past the configured window.
+     *
+     * @param  Message[]  $history
+     * @return Message[]
+     */
+    private function slidingWindow(array $history): array
+    {
+        return array_slice($history, -self::MAX_HISTORY_MESSAGES);
     }
 }

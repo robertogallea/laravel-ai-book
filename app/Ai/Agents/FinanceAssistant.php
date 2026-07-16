@@ -21,10 +21,7 @@ class FinanceAssistant implements Agent, Conversational
     public function instructions(): Stringable|string
     {
         return <<<'TEXT'
-        You are a helpful personal finance assistant. You answer questions
-        about the user's spending clearly and concisely, referring back to
-        amounts and categories the user has already mentioned earlier in
-        the conversation when relevant.
+        You are an assistant that helps with finances.
         TEXT;
     }
 

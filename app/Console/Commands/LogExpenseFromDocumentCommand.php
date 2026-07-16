@@ -24,19 +24,46 @@ class LogExpenseFromDocumentCommand extends Command
      *
      * Imported text does not come from the user typing in the chat: it may
      * be the body of an email or a document, so it is read here before the
-     * usual structured extraction is attempted on it. Reading it is simply
-     * concatenated onto the reader's own request-time instruction, with no
-     * separation between the two.
+     * usual structured extraction is attempted on it. The imported text is
+     * passed on its own, exactly as received, never merged with any other
+     * instruction at request time: the extraction instruction lives only in
+     * the reader's own instructions, fixed ahead of time.
      */
     public function handle(): int
     {
         $importedText = $this->argument('text');
 
-        $prompt = "Describe, in a single sentence, the amount, place, and date of the expense mentioned in the following imported text:\n\n{$importedText}";
+        $description = (new ImportedDocumentReader)->prompt($importedText)->text;
 
-        $description = (new ImportedDocumentReader)->prompt($prompt)->text;
+        if ($this->looksLikeALeakedInstruction($description)) {
+            $this->components->error('The imported text could not be processed safely and was discarded.');
+
+            return Command::FAILURE;
+        }
 
         return $this->extract($description);
+    }
+
+    /**
+     * Check the reader's output for security purposes, distinct from the
+     * format validation performed after extraction below: this looks for
+     * fragments of the reader's own instructions inside its output, a sign
+     * that the imported text managed to redirect it instead of being
+     * merely described.
+     */
+    private function looksLikeALeakedInstruction(string $description): bool
+    {
+        $instructions = preg_replace('/\s+/', ' ', (string) (new ImportedDocumentReader)->instructions());
+
+        foreach (preg_split('/(?<=[.:])\s+/', $instructions) as $sentence) {
+            $sentence = trim($sentence);
+
+            if (strlen($sentence) > 20 && str_contains($description, $sentence)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -62,21 +62,26 @@ Tags for this chapter:
 
 ## Chapter 2 - the system prompt as a structured artifact
 
-The assistant's system prompt (`app/Ai/Agents/FinanceAssistant.php`) started, in Chapter 1, as a
-short generic sentence. This chapter turns it into the running example of the chapter's own
-subject: a prompt built deliberately, section by section, instead of written off the cuff.
+Chapter 1's system prompt (`app/Ai/Agents/FinanceAssistant.php`) was already a specific
+instruction (answer concisely, refer back to amounts and categories already mentioned). This
+chapter first regresses it to a single ambiguous sentence, to make the resulting incoherence
+observable, then rewrites it as the running example of the chapter's own subject: a prompt built
+deliberately, section by section, instead of written off the cuff.
 
 Try the same handful of questions against both tagged versions, using `assistant:chat` so you can
 mention some fictitious spending figures first (there is still no transaction data or tool access
 at this point in the book: the assistant only knows what you tell it in the conversation):
 
-- "I spent $184 on restaurants this month, and $95 on groceries. How much did I spend in total?"
-- "How much did I spend on restaurants this month?" (in-scope, but check the tone and structure of
-  the reply)
+- "I spent $210 on transportation this month, $140 on entertainment, and $60 on utilities. Can you
+  summarize my spending?" (checks whether the reply groups spending by category with a total for
+  each, ordered from the highest to the lowest, as only the structured prompt's Format rule
+  requires)
+- "How much did I spend on transportation this month?" (in-scope, but check the tone and structure
+  of the reply)
 - "Can you help me write a Python script instead?" (out of scope: watch whether the assistant
   declines and stays on topic, or wanders off with the generic prompt)
-- "Should I invest my savings in index funds?" (should be declined either way, but only the
-  structured prompt says so explicitly instead of just improvising an answer)
+- "Should I invest my savings in index funds?" (only the structured prompt explicitly declines
+  this as out of scope; the generic prompt has no such rule and may well answer it directly)
 
 Tags for this chapter:
 

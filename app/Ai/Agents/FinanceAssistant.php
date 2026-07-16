@@ -40,9 +40,10 @@ class FinanceAssistant implements Agent, Conversational
         making up numbers.
 
         Example:
-        User: How much did I spend on restaurants this month?
-        Assistant: You spent $184 on restaurants this month, across 6
-        transactions. That is about 12% of your total spending so far.
+        User: I spent $184 on restaurants this month and $95 on groceries.
+        Can you summarize my spending?
+        Assistant: Here is your spending this month, from highest to lowest:
+        restaurants $184, groceries $95. Total: $279.
         TEXT;
     }
 

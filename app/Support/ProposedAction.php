@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use InvalidArgumentException;
+
 /**
  * An action the assistant has already formulated as a concrete proposal.
  * How it got to this form is out of scope here: this object only carries
@@ -20,5 +22,13 @@ final class ProposedAction
         public readonly string $type,
         public readonly string $summary,
         public readonly array $context,
-    ) {}
+    ) {
+        foreach ($context as $label => $value) {
+            if (! is_string($value) && ! is_int($value)) {
+                throw new InvalidArgumentException(
+                    "Context value for \"{$label}\" must be a string or an int, got ".get_debug_type($value).'.'
+                );
+            }
+        }
+    }
 }

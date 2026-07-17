@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Ai\Agents\SpendingAnalyst;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Sleep;
 use Laravel\Ai\Exceptions\AiException;
 use Tests\TestCase;
@@ -149,5 +150,24 @@ class AnalyzeSpendingCommandTest extends TestCase
             Sleep::for(200)->milliseconds(),
             Sleep::for(400)->milliseconds(),
         ]);
+    }
+
+    public function test_an_unexpected_analysis_leaves_nothing_behind_to_reconstruct_it(): void
+    {
+        Log::spy();
+
+        // Same disagreeing total as the uncertainty test above: a user
+        // reporting this reply as suspicious gives the developer nothing to
+        // inspect, because no call the assistant made is recorded anywhere.
+        SpendingAnalyst::fake([
+            ['total_spent_so_far' => 999.99, 'insight' => 'Your grocery spending looks stable so far.'],
+        ]);
+
+        $this->artisan('assistant:analyze-spending', [
+            'category' => 'groceries',
+            'amounts' => ['42.50', '18.00'],
+        ])->assertExitCode(0);
+
+        Log::shouldNotHaveReceived('info');
     }
 }

@@ -21,7 +21,7 @@ class TransactionSeeder extends Seeder
         $today = Carbon::parse('2026-07-17');
 
         $transactions = [
-            ['merchant' => 'Trattoria da Mario', 'category' => 'restaurants', 'amount' => 38.50, 'daysAgo' => 2],
+            ['merchant' => "Mario's Diner", 'category' => 'restaurants', 'amount' => 38.50, 'daysAgo' => 2],
             ['merchant' => 'Sushi Corner', 'category' => 'restaurants', 'amount' => 27.90, 'daysAgo' => 6],
             ['merchant' => 'Burger Yard', 'category' => 'restaurants', 'amount' => 14.20, 'daysAgo' => 11],
             ['merchant' => 'SuperMart', 'category' => 'groceries', 'amount' => 64.35, 'daysAgo' => 3],

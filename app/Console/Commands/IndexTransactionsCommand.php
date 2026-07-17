@@ -6,7 +6,10 @@ use App\Models\Transaction;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
+use Illuminate\Http\Client\HttpClientException;
 use Laravel\Ai\Embeddings;
+use Laravel\Ai\Exceptions\AiException;
+use RuntimeException;
 
 #[Signature('assistant:index-transactions')]
 #[Description('Compute and store embeddings for any transaction not indexed yet')]
@@ -32,7 +35,27 @@ class IndexTransactionsCommand extends Command
             return Command::SUCCESS;
         }
 
-        $embeddings = Embeddings::for($pending->map->description()->all())->generate();
+        try {
+            $embeddings = Embeddings::for($pending->map->description()->all())->generate();
+        } catch (AiException|HttpClientException) {
+            $this->components->error('Could not reach the embeddings provider right now. Please try again in a moment.');
+
+            return Command::FAILURE;
+        }
+
+        // The provider is expected to return exactly one embedding per
+        // input, in the same order: that is what lets the loop below match
+        // each embedding back to the transaction it was computed from by
+        // position alone. If that ever stops holding, failing loudly here
+        // is safer than silently writing one transaction's embedding onto
+        // another's row.
+        if (count($embeddings->embeddings) !== $pending->count()) {
+            throw new RuntimeException(sprintf(
+                'Expected %d embedding(s) from the provider, got %d: refusing to guess which transaction each one belongs to.',
+                $pending->count(),
+                count($embeddings->embeddings),
+            ));
+        }
 
         foreach ($pending as $index => $transaction) {
             $transaction->update(['embedding' => $embeddings->embeddings[$index]]);

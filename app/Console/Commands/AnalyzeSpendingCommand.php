@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Ai\Agents\SpendingAnalyst;
+use App\Support\CallTrace;
 use Closure;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -11,6 +12,7 @@ use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Support\Sleep;
 use Laravel\Ai\Exceptions\AiException;
 use Laravel\Ai\Responses\AgentResponse;
+use Throwable;
 
 #[Signature('assistant:analyze-spending {category : Spending category to analyze} {amounts* : Known transaction amounts in this category so far this month}')]
 #[Description('Ask the assistant for the total spent so far in a category and a short insight about the trend')]
@@ -55,11 +57,13 @@ class AnalyzeSpendingCommand extends Command
         $amounts = array_map('floatval', $this->argument('amounts'));
         $knownTotal = array_sum($amounts);
 
-        $response = $this->callWithRetry(fn () => (new SpendingAnalyst)->prompt(sprintf(
+        $prompt = sprintf(
             'Category: %s. Known transactions so far this month (dollars): %s.',
             $category,
             implode(', ', array_map(fn ($amount) => number_format($amount, 2), $amounts)),
-        )));
+        );
+
+        $response = $this->callWithRetry($prompt, fn () => (new SpendingAnalyst)->prompt($prompt));
 
         if ($response === null) {
             $this->components->error(sprintf(
@@ -89,20 +93,26 @@ class AnalyzeSpendingCommand extends Command
     /**
      * Call the assistant, retrying a technical failure with exponential
      * backoff up to a bounded number of attempts. Returns null once every
-     * attempt has been exhausted, leaving the fallback to the caller.
+     * attempt has been exhausted, leaving the fallback to the caller. Every
+     * call that actually completes, however many attempts it took to get
+     * there, is traced before being returned: a failed attempt has no
+     * response to trace, but the exchange that finally succeeds always does.
      *
      * Both AiException (the failures the package itself recognizes) and
      * HttpClientException are caught: a real timeout or dropped connection
      * surfaces as ConnectionException or RequestException, both subclasses
-     * of HttpClientException rather than AiException.
+     * of HttpClientException rather than AiException. Tracing that
+     * successful exchange must never be able to take down a call that
+     * already succeeded: a broken log channel is a problem to fix on its
+     * own, not a reason to discard an answer already in hand.
      */
-    private function callWithRetry(Closure $call): ?AgentResponse
+    private function callWithRetry(string $prompt, Closure $call): ?AgentResponse
     {
         $backoffMs = self::INITIAL_BACKOFF_MS;
 
         for ($attempt = 1; $attempt <= self::MAX_ATTEMPTS; $attempt++) {
             try {
-                return $call();
+                $response = $call();
             } catch (AiException|HttpClientException) {
                 if ($attempt === self::MAX_ATTEMPTS) {
                     return null;
@@ -110,7 +120,17 @@ class AnalyzeSpendingCommand extends Command
 
                 Sleep::for($backoffMs)->milliseconds();
                 $backoffMs *= 2;
+
+                continue;
             }
+
+            try {
+                CallTrace::record($prompt, $response);
+            } catch (Throwable) {
+                // Intentionally ignored, see above.
+            }
+
+            return $response;
         }
 
         return null;

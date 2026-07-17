@@ -226,6 +226,17 @@ Tags for this chapter:
   ```bash
   git diff ch06-fragile-spending-analysis ch06-resilient-spending-analysis
   ```
+- `ch06-untraced-spending-calls` - same resilient command as above, still with no logging: if a
+  user reports an unexpected reply, there is nothing recorded anywhere to reconstruct which prompt
+  was actually sent or what the assistant actually answered.
+- `ch06-traced-spending-calls` - every call that completes, however many attempts it took, is
+  recorded as a trace event with exactly five fields: the prompt actually sent, the response
+  actually received, tokens consumed, the outcome of any guardrail the call went through (`null`
+  here, since this command has none), and a timestamp. Compare the two with:
+
+  ```bash
+  git diff ch06-untraced-spending-calls ch06-traced-spending-calls
+  ```
 
 ## Tag convention
 

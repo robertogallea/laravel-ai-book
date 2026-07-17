@@ -7,6 +7,8 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Sleep;
 use Laravel\Ai\Exceptions\AiException;
+use Mockery;
+use RuntimeException;
 use Tests\TestCase;
 
 class AnalyzeSpendingCommandTest extends TestCase
@@ -152,13 +154,13 @@ class AnalyzeSpendingCommandTest extends TestCase
         ]);
     }
 
-    public function test_an_unexpected_analysis_leaves_nothing_behind_to_reconstruct_it(): void
+    public function test_an_unexpected_analysis_can_be_reconstructed_from_its_trace(): void
     {
         Log::spy();
 
         // Same disagreeing total as the uncertainty test above: a user
-        // reporting this reply as suspicious gives the developer nothing to
-        // inspect, because no call the assistant made is recorded anywhere.
+        // reporting this reply as suspicious now gives the developer
+        // exactly what was sent and received for that specific exchange.
         SpendingAnalyst::fake([
             ['total_spent_so_far' => 999.99, 'insight' => 'Your grocery spending looks stable so far.'],
         ]);
@@ -168,6 +170,77 @@ class AnalyzeSpendingCommandTest extends TestCase
             'amounts' => ['42.50', '18.00'],
         ])->assertExitCode(0);
 
+        Log::shouldHaveReceived('info')
+            ->once()
+            ->with('llm_call', Mockery::on(function (array $trace) {
+                return $trace['prompt'] === 'Category: groceries. Known transactions so far this month (dollars): 42.50, 18.00.'
+                    && str_contains($trace['response'], '999.99')
+                    && $trace['tokens'] === 0
+                    && $trace['guardrail_outcome'] === null
+                    && is_string($trace['timestamp']);
+            }));
+    }
+
+    public function test_a_retried_call_only_traces_the_attempt_that_succeeded(): void
+    {
+        Sleep::fake();
+        Log::spy();
+
+        $attempt = 0;
+
+        SpendingAnalyst::fake(function () use (&$attempt) {
+            $attempt++;
+
+            if ($attempt === 1) {
+                throw new AiException('The AI service did not respond in time.');
+            }
+
+            return ['total_spent_so_far' => 60.50, 'insight' => 'Your grocery spending looks stable so far.'];
+        });
+
+        $this->artisan('assistant:analyze-spending', [
+            'category' => 'groceries',
+            'amounts' => ['42.50', '18.00'],
+        ])->assertExitCode(0);
+
+        Log::shouldHaveReceived('info')->with('llm_call', Mockery::any())->once();
+    }
+
+    public function test_falling_back_after_exhausting_every_retry_traces_nothing(): void
+    {
+        Sleep::fake();
+        Log::spy();
+
+        SpendingAnalyst::fake([
+            fn () => throw new AiException('The AI service did not respond in time.'),
+            fn () => throw new AiException('The AI service did not respond in time.'),
+            fn () => throw new AiException('The AI service did not respond in time.'),
+        ]);
+
+        $this->artisan('assistant:analyze-spending', [
+            'category' => 'groceries',
+            'amounts' => ['42.50', '18.00'],
+        ])->assertExitCode(1);
+
         Log::shouldNotHaveReceived('info');
+    }
+
+    public function test_a_broken_log_channel_does_not_prevent_a_successful_analysis_from_being_shown(): void
+    {
+        SpendingAnalyst::fake([
+            ['total_spent_so_far' => 60.50, 'insight' => 'Your grocery spending looks stable so far.'],
+        ]);
+
+        Log::shouldReceive('info')
+            ->once()
+            ->andThrow(new RuntimeException('log channel unavailable'));
+
+        $this->artisan('assistant:analyze-spending', [
+            'category' => 'groceries',
+            'amounts' => ['42.50', '18.00'],
+        ])
+            ->expectsOutputToContain('Total spent so far on groceries: 60.50 dollars')
+            ->expectsOutputToContain('Your grocery spending looks stable so far.')
+            ->assertExitCode(0);
     }
 }

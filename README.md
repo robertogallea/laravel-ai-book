@@ -167,6 +167,36 @@ Tags for this chapter:
   git diff ch04-unguarded-document-import ch04-guardrailed-document-import
   ```
 
+## Chapter 5 - human-in-the-loop approval for financial actions
+
+```bash
+php artisan assistant:cancel-subscription "Streaming Plus" 12.99 97
+php artisan assistant:transfer-funds checking savings 200
+```
+
+In the unapproved version, both commands act the instant they run: the subscription is
+cancelled, the funds are moved, with no confirmation of any kind and no way to observe or
+undo the action first. In the approval-gated version, both commands instead register the
+action as a proposal, print its summary and context (cost, days unused; amount, source and
+destination account), and only run it after an explicit "Approve this action?" confirmation.
+Answering no leaves the action unexecuted and logs the rejection; nothing is retried or
+reformulated. Both outcomes, approved or rejected, are recorded through `App\Support\AuditLog`.
+
+The approval gate itself (`App\Console\Commands\Concerns\RequiresApproval`) is generic: the
+same trait, wrapped around a `App\Support\ProposedAction`, is what both commands use, without
+either one having to reimplement the notify-confirm-execute-or-reject flow.
+
+Tags for this chapter:
+
+- `ch05-unapproved-financial-actions` - both commands execute immediately, with no confirmation
+  step of any kind.
+- `ch05-approval-gated-financial-actions` - both commands submit a `ProposedAction` for explicit
+  approval before executing, and record the outcome either way. Compare the two with:
+
+  ```bash
+  git diff ch05-unapproved-financial-actions ch05-approval-gated-financial-actions
+  ```
+
 ## Tag convention
 
 Tags follow `chNN-slug`, where `NN` is the two-digit chapter number. Multiple tags are added per

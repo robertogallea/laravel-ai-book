@@ -24,8 +24,23 @@ class CancelSubscriptionCommand extends Command
     public function handle(): int
     {
         $name = $this->argument('name');
-        $cost = (float) $this->argument('monthly_cost');
-        $daysUnused = (int) $this->argument('days_unused');
+        $rawCost = $this->argument('monthly_cost');
+        $rawDaysUnused = $this->argument('days_unused');
+
+        if (! is_numeric($rawCost) || (float) $rawCost < 0) {
+            $this->components->error("Monthly cost must be a non-negative number, got \"{$rawCost}\".");
+
+            return Command::INVALID;
+        }
+
+        if (! ctype_digit((string) $rawDaysUnused)) {
+            $this->components->error("Days unused must be a non-negative whole number, got \"{$rawDaysUnused}\".");
+
+            return Command::INVALID;
+        }
+
+        $cost = (float) $rawCost;
+        $daysUnused = (int) $rawDaysUnused;
 
         $action = new ProposedAction(
             type: 'cancel_subscription',
@@ -34,9 +49,8 @@ class CancelSubscriptionCommand extends Command
                 'Monthly cost' => sprintf('%.2f dollars', $cost),
                 'Days since last use' => $daysUnused,
             ],
-            executor: fn () => "Subscription \"{$name}\" has been cancelled.",
         );
 
-        return $this->submitForApproval($action);
+        return $this->submitForApproval($action, fn () => "Subscription \"{$name}\" has been cancelled.");
     }
 }

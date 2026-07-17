@@ -26,19 +26,33 @@ class TransferFundsCommand extends Command
     {
         $from = $this->argument('from');
         $to = $this->argument('to');
-        $amount = (float) $this->argument('amount');
+        $rawAmount = $this->argument('amount');
+
+        if (! is_numeric($rawAmount) || (float) $rawAmount <= 0) {
+            $this->components->error("Amount must be a positive number, got \"{$rawAmount}\".");
+
+            return Command::INVALID;
+        }
+
+        if ($from === $to) {
+            $this->components->error("Source and destination accounts must be different, both were \"{$from}\".");
+
+            return Command::INVALID;
+        }
+
+        $amount = (float) $rawAmount;
+        $formattedAmount = sprintf('%.2f dollars', $amount);
 
         $action = new ProposedAction(
             type: 'transfer_funds',
-            summary: sprintf('Move %.2f dollars from %s to %s', $amount, $from, $to),
+            summary: "Move {$formattedAmount} from {$from} to {$to}",
             context: [
-                'Amount' => sprintf('%.2f dollars', $amount),
+                'Amount' => $formattedAmount,
                 'From account' => $from,
                 'To account' => $to,
             ],
-            executor: fn () => sprintf('%.2f dollars have been moved from %s to %s.', $amount, $from, $to),
         );
 
-        return $this->submitForApproval($action);
+        return $this->submitForApproval($action, fn () => "{$formattedAmount} have been moved from {$from} to {$to}.");
     }
 }

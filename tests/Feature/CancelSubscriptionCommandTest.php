@@ -20,6 +20,8 @@ class CancelSubscriptionCommandTest extends TestCase
 
         $this->artisan('assistant:cancel-subscription', self::ARGUMENTS)
             ->expectsOutputToContain('Proposed action: Cancel the "Streaming Plus" subscription')
+            ->expectsOutputToContain('Monthly cost: 12.99 dollars')
+            ->expectsOutputToContain('Days since last use: 97')
             ->expectsConfirmation('Approve this action?', 'yes')
             ->expectsOutputToContain('Subscription "Streaming Plus" has been cancelled.')
             ->assertExitCode(0);
@@ -27,7 +29,10 @@ class CancelSubscriptionCommandTest extends TestCase
         Log::shouldHaveReceived('info')
             ->once()
             ->with('proposed_action.approved', Mockery::on(
-                fn (array $context) => $context['type'] === 'cancel_subscription',
+                fn (array $payload) => $payload['type'] === 'cancel_subscription'
+                    && $payload['context']['Monthly cost'] === '12.99 dollars'
+                    && $payload['context']['Days since last use'] === 97
+                    && $payload['detail'] === 'Subscription "Streaming Plus" has been cancelled.',
             ));
     }
 
@@ -39,12 +44,46 @@ class CancelSubscriptionCommandTest extends TestCase
             ->expectsConfirmation('Approve this action?', 'no')
             ->expectsOutputToContain('Action rejected. Nothing was executed.')
             ->doesntExpectOutputToContain('has been cancelled')
-            ->assertExitCode(1);
+            ->assertExitCode(2);
 
         Log::shouldHaveReceived('info')
             ->once()
             ->with('proposed_action.rejected', Mockery::on(
-                fn (array $context) => $context['type'] === 'cancel_subscription',
+                fn (array $payload) => $payload['type'] === 'cancel_subscription'
+                    && $payload['context']['Monthly cost'] === '12.99 dollars',
             ));
+    }
+
+    public function test_a_non_numeric_monthly_cost_is_rejected_before_any_proposal_is_made(): void
+    {
+        Log::spy();
+
+        $this->artisan('assistant:cancel-subscription', array_merge(self::ARGUMENTS, ['monthly_cost' => 'abc']))
+            ->expectsOutputToContain('Monthly cost must be a non-negative number, got "abc"')
+            ->assertExitCode(2);
+
+        Log::shouldNotHaveReceived('info');
+    }
+
+    public function test_a_negative_monthly_cost_is_rejected_before_any_proposal_is_made(): void
+    {
+        Log::spy();
+
+        $this->artisan('assistant:cancel-subscription', array_merge(self::ARGUMENTS, ['monthly_cost' => '-5']))
+            ->expectsOutputToContain('Monthly cost must be a non-negative number, got "-5"')
+            ->assertExitCode(2);
+
+        Log::shouldNotHaveReceived('info');
+    }
+
+    public function test_a_non_integer_days_unused_is_rejected_before_any_proposal_is_made(): void
+    {
+        Log::spy();
+
+        $this->artisan('assistant:cancel-subscription', array_merge(self::ARGUMENTS, ['days_unused' => '3.5']))
+            ->expectsOutputToContain('Days unused must be a non-negative whole number, got "3.5"')
+            ->assertExitCode(2);
+
+        Log::shouldNotHaveReceived('info');
     }
 }

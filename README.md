@@ -197,6 +197,36 @@ Tags for this chapter:
   git diff ch05-unapproved-financial-actions ch05-approval-gated-financial-actions
   ```
 
+## Chapter 6 - resilience: retry, backoff, fallback, and an uncertainty signal
+
+```bash
+php artisan assistant:analyze-spending groceries 42.50 18.00
+```
+
+The command asks the assistant for the total already spent on a category this month and a short
+insight about the trend, given a list of the category's known transactions. In the fragile
+version, a provider failure (timeout, dropped connection) has no handling at all and crashes the
+command, and the reported total is printed exactly as received, with no check against the
+transactions already known to the caller: a plausible but numerically wrong total looks exactly
+like a correct one. In the resilient version, a provider failure is retried with exponential
+backoff up to a bounded number of attempts, with an explicit fallback message once those are
+exhausted; the reported total is cross-checked against the sum of the known transactions
+(something the application can verify exactly, unlike a free-form projection), and the assistant's
+insight is flagged with an explicit uncertainty note whenever that check does not agree.
+
+Tags for this chapter:
+
+- `ch06-fragile-spending-analysis` - a single unguarded call to the assistant: a provider failure
+  crashes the command, and the reported total is trusted with no verification of any kind.
+- `ch06-resilient-spending-analysis` - the same call wrapped in a bounded retry with exponential
+  backoff and an explicit fallback, plus a cross-check of the reported total against the known
+  transactions that flags the assistant's insight as uncertain on disagreement. Compare the two
+  with:
+
+  ```bash
+  git diff ch06-fragile-spending-analysis ch06-resilient-spending-analysis
+  ```
+
 ## Tag convention
 
 Tags follow `chNN-slug`, where `NN` is the two-digit chapter number. Multiple tags are added per

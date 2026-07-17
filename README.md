@@ -238,6 +238,46 @@ Tags for this chapter:
   git diff ch06-untraced-spending-calls ch06-traced-spending-calls
   ```
 
+## Chapter 7 - RAG: grounding spending questions in real transactions
+
+```bash
+php artisan assistant:ask-spending "How much did I spend on restaurants this month?"
+```
+
+In the ungrounded version, the assistant answers from its own general knowledge alone: it never
+sees the user's actual transactions, so a question that depends on them gets a generic reply
+(a budgeting rule of thumb) or a request for the figures it does not have, never the real
+numbers. The grounded version retrieves the transactions most relevant to the question before
+answering it:
+
+```bash
+php artisan db:seed --class=Database\\Seeders\\TransactionSeeder
+php artisan assistant:index-transactions
+php artisan assistant:ask-spending "How much did I spend on restaurants this month?"
+```
+
+Seeding creates a handful of fictitious transactions across categories (`App\Models\Transaction`);
+indexing computes an embedding for each transaction's description
+(`App\Console\Commands\IndexTransactionsCommand`) and stores it alongside the row, using
+`Laravel\Ai\Embeddings`. Asking a question now embeds the question itself, ranks the indexed
+transactions by cosine similarity to it (`App\Support\VectorStore`, a small brute-force
+similarity ranker rather than a dedicated vector database, adequate for the handful of
+transactions this example works with), and folds the most relevant ones into the prompt before
+calling the assistant. Run `assistant:index-transactions` again after adding transactions: it
+only computes embeddings for rows that do not have one yet.
+
+Tags for this chapter:
+
+- `ch07-ungrounded-spending-questions` - `assistant:ask-spending` calls the assistant with the
+  question alone, no transaction data of any kind.
+- `ch07-grounded-spending-questions` - adds `Transaction`, `IndexTransactionsCommand`, and
+  `VectorStore`, and the same command now retrieves the most relevant indexed transactions by
+  embedding similarity and includes them in the prompt before asking. Compare the two with:
+
+  ```bash
+  git diff ch07-ungrounded-spending-questions ch07-grounded-spending-questions
+  ```
+
 ## Tag convention
 
 Tags follow `chNN-slug`, where `NN` is the two-digit chapter number. Multiple tags are added per

@@ -12,6 +12,7 @@ it (see the root `.gitignore`).
 - PHP 8.5
 - Laravel 13
 - [`laravel/ai`](https://packagist.org/packages/laravel/ai) `^0.9`, default provider: OpenAI
+- [`laravel/mcp`](https://packagist.org/packages/laravel/mcp) `^0.8` (from Chapter 9 on)
 
 ## Setup
 
@@ -307,6 +308,50 @@ Tags for this chapter:
 
   ```bash
   git diff ch08-guessed-purchase-assessment ch08-agentic-purchase-assessment
+  ```
+
+## Chapter 9 - MCP: an exchange-rate tool discovered from a server, not hand-declared
+
+```bash
+php artisan assistant:convert-currency "How much are 500 dollars in euros?"
+```
+
+In the ad-hoc version, `CurrencyAdvisor` calls a tool written by hand for this application alone
+(`App\Ai\Tools\GetExchangeRateTool`): a direct HTTP call to one specific external provider, its
+response parsed manually, with no schema standard beyond this app's own tool and no control over
+what that provider is allowed to see or return. Any other application that needs the same exchange
+rate has to write this exact same integration again, from scratch.
+
+The corrected version replaces it with a connection to an MCP server instead:
+
+```bash
+php artisan mcp:start exchange-rates
+```
+
+(this second command is only needed if you want to inspect the server on its own; the assistant
+starts it automatically as a subprocess when it connects.)
+
+`CurrencyAdvisor` no longer declares a tool by hand: it connects to a named MCP client
+(`Mcp::client('exchange-rates')`, registered in `AppServiceProvider`), discovers what that server
+exposes, and is explicitly scoped to the one capability this application grants itself
+(`CurrencyAdvisor::GRANTED_MCP_TOOLS`), regardless of anything else the server might list. The
+server side (`App\Mcp\Servers\ExchangeRateServer`, `App\Mcp\Tools\GetExchangeRateTool`) is written
+once and is reusable by any other client that connects to it, unlike the integration it replaces.
+It runs locally here, over stdio (`routes/ai.php`), standing in for a third-party service that in
+production would be reached over the web (`Client::web(...)`) instead: kept local so this example
+stays reproducible for every reader instead of depending on a specific external company's uptime.
+
+Tags for this chapter:
+
+- `ch09-adhoc-exchange-rate-tool` - `CurrencyAdvisor` calls `GetExchangeRateTool`, a hand-written
+  tool with a direct, unchecked HTTP call to one specific external provider.
+- `ch09-mcp-exchange-rate-tool` - removes that tool; adds `App\Mcp\Servers\ExchangeRateServer` and
+  `App\Mcp\Tools\GetExchangeRateTool` (a local MCP server), registers a named MCP client, and
+  updates `CurrencyAdvisor` to discover and invoke the server's tool instead, scoped to an explicit
+  allow-list. Compare the two with:
+
+  ```bash
+  git diff ch09-adhoc-exchange-rate-tool ch09-mcp-exchange-rate-tool
   ```
 
 ## Tag convention

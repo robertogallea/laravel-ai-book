@@ -16,14 +16,30 @@ class GetBudgetStatusToolTest extends TestCase
     {
         config(['finance.budgets' => ['groceries' => 400.00, 'entertainment' => 100.00]]);
 
-        Transaction::factory()->create(['category' => 'groceries', 'amount' => 64.35]);
-        Transaction::factory()->create(['category' => 'groceries', 'amount' => 22.10]);
-        Transaction::factory()->create(['category' => 'entertainment', 'amount' => 300.00]);
+        Transaction::factory()->create(['category' => 'groceries', 'amount' => 64.35, 'occurred_at' => now()]);
+        Transaction::factory()->create(['category' => 'groceries', 'amount' => 22.10, 'occurred_at' => now()]);
+        Transaction::factory()->create(['category' => 'entertainment', 'amount' => 300.00, 'occurred_at' => now()]);
 
         $result = (string) (new GetBudgetStatusTool)->handle(new Request(['category' => 'groceries']));
 
         $this->assertSame(
             'Category "groceries": 86.45 dollars spent so far this month, out of a 400.00 dollars monthly budget.',
+            $result,
+        );
+    }
+
+    public function test_spending_from_previous_months_is_not_counted_toward_the_current_month(): void
+    {
+        config(['finance.budgets' => ['groceries' => 400.00]]);
+
+        Transaction::factory()->create(['category' => 'groceries', 'amount' => 64.35, 'occurred_at' => now()]);
+        Transaction::factory()->create(['category' => 'groceries', 'amount' => 999.00, 'occurred_at' => now()->subMonthNoOverflow()]);
+        Transaction::factory()->create(['category' => 'groceries', 'amount' => 999.00, 'occurred_at' => now()->subYearNoOverflow()]);
+
+        $result = (string) (new GetBudgetStatusTool)->handle(new Request(['category' => 'groceries']));
+
+        $this->assertSame(
+            'Category "groceries": 64.35 dollars spent so far this month, out of a 400.00 dollars monthly budget.',
             $result,
         );
     }

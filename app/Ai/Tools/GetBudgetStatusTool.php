@@ -25,7 +25,10 @@ class GetBudgetStatusTool implements Tool
             return "No budget is set for the \"{$category}\" category.";
         }
 
-        $spent = Transaction::where('category', $category)->sum('amount');
+        $spent = Transaction::where('category', $category)
+            ->whereYear('occurred_at', now()->year)
+            ->whereMonth('occurred_at', now()->month)
+            ->sum('amount');
 
         return sprintf(
             'Category "%s": %.2f dollars spent so far this month, out of a %.2f dollars monthly budget.',

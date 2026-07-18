@@ -2,11 +2,10 @@
 
 namespace App\Ai\Agents;
 
-use App\Ai\Tools\GetExchangeRateTool;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\HasTools;
-use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Promptable;
+use Laravel\Mcp\Facades\Mcp;
 use Stringable;
 
 /**
@@ -18,6 +17,15 @@ use Stringable;
 class CurrencyAdvisor implements Agent, HasTools
 {
     use Promptable;
+
+    /**
+     * The only capability this application grants itself from the
+     * exchange-rate MCP server: this server can be queried for exchange
+     * rates, nothing else, no matter what other tools it lists when asked.
+     *
+     * @var array<int, string>
+     */
+    private const GRANTED_MCP_TOOLS = ['get-exchange-rate-tool'];
 
     /**
      * Get the instructions that the agent should follow.
@@ -38,12 +46,15 @@ class CurrencyAdvisor implements Agent, HasTools
     /**
      * Get the tools available to the agent.
      *
-     * @return Tool[]
+     * Discovered from the connected server, not declared by hand: the
+     * server could list other capabilities tomorrow, and this agent would
+     * still only ever see the one named in GRANTED_MCP_TOOLS above.
      */
     public function tools(): iterable
     {
-        return [
-            new GetExchangeRateTool,
-        ];
+        return Mcp::client('exchange-rates')
+            ->tools()
+            ->only(self::GRANTED_MCP_TOOLS)
+            ->all();
     }
 }

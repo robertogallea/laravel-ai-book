@@ -62,7 +62,12 @@ class AssessPurchaseCommand extends Command
         $this->line($affordable ? 'Affordable: yes.' : 'Affordable: no.');
         $this->line($reasoning);
 
-        if ($suggestedAction === null) {
+        // A suggested action only makes sense alongside "not affordable":
+        // the schema does not enforce that link, so an inconsistent
+        // response (affordable *and* a suggestion) is treated as no
+        // suggestion at all, instead of proposing an unnecessary
+        // cancellation the assistant's own instructions never intended.
+        if ($suggestedAction === null || $affordable) {
             return Command::SUCCESS;
         }
 

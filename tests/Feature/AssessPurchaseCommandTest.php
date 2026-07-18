@@ -32,6 +32,34 @@ class AssessPurchaseCommandTest extends TestCase
         PurchaseAdvisor::assertPrompted(fn ($prompt) => $prompt->prompt === self::GOAL);
     }
 
+    public function test_an_inconsistent_suggested_action_on_an_affordable_purchase_is_ignored_instead_of_proposed(): void
+    {
+        // The schema does not forbid the model from returning "affordable"
+        // together with a suggested action, even though the assistant's own
+        // instructions say a suggestion only belongs on an unaffordable
+        // purchase: this must not surface an unnecessary cancellation
+        // proposal just because the model's response was inconsistent.
+        PurchaseAdvisor::fake([
+            [
+                'affordable' => true,
+                'reasoning' => 'The purchase fits comfortably within the current budget.',
+                'suggested_action' => [
+                    'subscription_name' => 'Streaming Plus',
+                    'monthly_cost' => 12.99,
+                    'days_unused' => 97,
+                ],
+            ],
+        ]);
+
+        $this->artisan('assistant:assess-purchase', [
+            'amount' => '600',
+            'description' => 'a new laptop',
+        ])
+            ->expectsOutputToContain('Affordable: yes.')
+            ->doesntExpectOutputToContain('Proposed action')
+            ->assertExitCode(0);
+    }
+
     public function test_an_unaffordable_purchase_can_suggest_cancelling_an_unused_subscription_pending_approval(): void
     {
         Log::spy();

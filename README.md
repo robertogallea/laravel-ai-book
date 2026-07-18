@@ -278,6 +278,37 @@ Tags for this chapter:
   git diff ch07-ungrounded-spending-questions ch07-grounded-spending-questions
   ```
 
+## Chapter 8 - agentic purchase assessment: tool use, a reasoning-action loop, and approval
+
+```bash
+php artisan assistant:assess-purchase 600 "a new laptop"
+```
+
+In the guessed version, a single call to the assistant answers "can I afford this?" from general
+spending patterns alone: it has no access to the user's actual balance, recurring subscriptions,
+or budget, so the answer is at best a plausible guess, never a conclusion grounded in this user's
+real data. The agentic version replaces that single call with a bounded reasoning-action loop
+(`App\Ai\Agents\PurchaseAdvisor`, capped at 5 steps via `#[MaxSteps(5)]`): given the purchase as a
+goal, the assistant decides for itself which of three real tools to call and in what order
+(`App\Ai\Tools\GetAccountBalanceTool`, `GetRecurringExpensesTool`, `GetBudgetStatusTool`), observes
+each result, and only then concludes with a structured verdict. If, as part of that conclusion, it
+suggests cancelling an unused subscription to free up budget, that suggestion is never executed
+directly: it is submitted through the very same approval gate (`RequiresApproval`,
+`ProposedAction`) already built in Chapter 5, exactly like every other consequential action in this
+application.
+
+Tags for this chapter:
+
+- `ch08-guessed-purchase-assessment` - `assistant:assess-purchase` calls the assistant with the
+  purchase amount and description alone, no tool access of any kind.
+- `ch08-agentic-purchase-assessment` - adds `PurchaseAdvisor`, three tools reading the account
+  balance, recurring subscriptions, and budget status, and routes any suggested subscription
+  cancellation through the existing approval gate before executing anything. Compare the two with:
+
+  ```bash
+  git diff ch08-guessed-purchase-assessment ch08-agentic-purchase-assessment
+  ```
+
 ## Tag convention
 
 Tags follow `chNN-slug`, where `NN` is the two-digit chapter number. Multiple tags are added per

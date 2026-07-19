@@ -461,6 +461,13 @@ Tags for this chapter:
   git diff ch10-undifferentiated-model ch10-routed-model-per-task
   ```
 
+## Chapter 10 - the cost of switching providers: an experiment, not a new feature
+
+`PROVIDER-SWITCH-EXPERIMENT.md` records the result of actually swapping this app's configured
+provider from OpenAI to Anthropic and re-running the entire existing test suite unchanged: no new
+tag for this one, since nothing about the application's functionality changes, only what it is
+configured to talk to.
+
 ## Tag convention
 
 Tags follow `chNN-slug`, where `NN` is the two-digit chapter number. Multiple tags are added per

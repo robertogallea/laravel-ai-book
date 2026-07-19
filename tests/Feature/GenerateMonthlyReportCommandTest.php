@@ -98,4 +98,47 @@ class GenerateMonthlyReportCommandTest extends TestCase
 
         OverspendingAdvisor::assertNeverPrompted();
     }
+
+    public function test_an_incomplete_recommendations_response_is_reported_instead_of_trusted(): void
+    {
+        config(['finance.budgets' => ['groceries' => 400.00]]);
+
+        Transaction::factory()->create(['category' => 'groceries', 'amount' => 500.00, 'occurred_at' => now()]);
+
+        MonthlyReportSummarizer::fake([
+            ['summary' => 'Groceries is over budget this month.'],
+        ]);
+
+        OverspendingAdvisor::fake([
+            [],
+        ]);
+
+        $this->artisan('assistant:generate-monthly-report')
+            ->expectsOutputToContain('Groceries is over budget this month.')
+            ->expectsOutputToContain('The assistant returned incomplete recommendations')
+            ->assertExitCode(1);
+    }
+
+    public function test_a_zero_budget_category_with_any_spending_is_treated_as_over_budget(): void
+    {
+        config(['finance.budgets' => ['groceries' => 0.00]]);
+
+        Transaction::factory()->create(['category' => 'groceries', 'amount' => 0.01, 'occurred_at' => now()]);
+
+        MonthlyReportSummarizer::fake([
+            ['summary' => 'Groceries has no budget allocated this month.'],
+        ]);
+
+        OverspendingAdvisor::fake([
+            ['recommendations' => 'Set a budget for groceries or stop spending in this category.'],
+        ]);
+
+        $this->artisan('assistant:generate-monthly-report')
+            ->expectsOutputToContain('Set a budget for groceries or stop spending in this category.')
+            ->assertExitCode(0);
+
+        OverspendingAdvisor::assertPrompted(
+            fn ($prompt) => str_contains($prompt->prompt, 'groceries: INF% over budget')
+        );
+    }
 }

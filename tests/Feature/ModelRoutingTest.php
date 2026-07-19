@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Ai\Agents\ExpenseExtractor;
 use App\Ai\Agents\PurchaseAdvisor;
+use Laravel\Ai\Ai;
 use Tests\TestCase;
 
 class ModelRoutingTest extends TestCase
@@ -18,7 +19,15 @@ class ModelRoutingTest extends TestCase
             'description' => 'Coffee, 12.50 dollars, today.',
         ])->assertExitCode(0);
 
-        ExpenseExtractor::assertPrompted(fn ($prompt) => $prompt->model === 'gpt-5.4-nano');
+        // Asserted against whatever the configured provider actually
+        // resolves as its cheapest model, not a literal string: the
+        // routing is provider-relative by design (see #[UseCheapestModel]),
+        // and a test tied to one provider's concrete model name would break
+        // the moment a different provider is configured, exactly as
+        // PROVIDER-SWITCH-EXPERIMENT.md documents.
+        $cheapest = Ai::textProviderFor(new ExpenseExtractor, null)->cheapestTextModel();
+
+        ExpenseExtractor::assertPrompted(fn ($prompt) => $prompt->model === $cheapest);
     }
 
     public function test_planning_is_routed_to_the_smartest_available_model(): void
@@ -32,7 +41,9 @@ class ModelRoutingTest extends TestCase
             'description' => 'a new laptop',
         ])->assertExitCode(0);
 
-        PurchaseAdvisor::assertPrompted(fn ($prompt) => $prompt->model === 'gpt-5.4-pro');
+        $smartest = Ai::textProviderFor(new PurchaseAdvisor, null)->smartestTextModel();
+
+        PurchaseAdvisor::assertPrompted(fn ($prompt) => $prompt->model === $smartest);
     }
 
     public function test_categorization_and_planning_no_longer_resolve_to_the_same_model(): void
@@ -56,7 +67,11 @@ class ModelRoutingTest extends TestCase
 
         // Neither call site chose a model itself: the routing lives once,
         // on each agent class, and every caller inherits it for free.
-        ExpenseExtractor::assertPrompted(fn ($prompt) => $prompt->model !== 'gpt-5.4');
-        PurchaseAdvisor::assertPrompted(fn ($prompt) => $prompt->model !== 'gpt-5.4');
+        // Asserted against the resolved default for the configured
+        // provider, not a literal string, for the same reason as above.
+        $default = Ai::textProviderFor(new ExpenseExtractor, null)->defaultTextModel();
+
+        ExpenseExtractor::assertPrompted(fn ($prompt) => $prompt->model !== $default);
+        PurchaseAdvisor::assertPrompted(fn ($prompt) => $prompt->model !== $default);
     }
 }

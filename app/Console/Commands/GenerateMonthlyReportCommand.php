@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Ai\Agents\MonthlyReportSummarizer;
 use App\Ai\Agents\OverspendingAdvisor;
+use App\Console\Commands\Concerns\ReadsStructuredResponse;
 use App\Models\Transaction;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -13,6 +14,8 @@ use Illuminate\Console\Command;
 #[Description("Generate this month's spending report")]
 class GenerateMonthlyReportCommand extends Command
 {
+    use ReadsStructuredResponse;
+
     /**
      * How far over its budget a category has to be, as a fraction of the
      * budget itself, before the recommendations step below runs at all.
@@ -48,15 +51,21 @@ class GenerateMonthlyReportCommand extends Command
         // Step 2: categorizzazione. Deterministic aggregation, not a
         // single call to the model: every category configured in
         // config('finance.budgets') appears below, whether or not any
-        // transaction happened to fall into it this month.
-        $categories = $budgets->map(function (float $limit, string $category) use ($transactions) {
-            $spent = (float) $transactions->where('category', $category)->sum('amount');
+        // transaction happened to fall into it this month. Grouped once,
+        // not re-scanned once per category.
+        $spentByCategory = $transactions->groupBy('category')->map->sum('amount');
+
+        $categories = $budgets->map(function (float $limit, string $category) use ($spentByCategory) {
+            $spent = (float) ($spentByCategory[$category] ?? 0.0);
 
             return [
                 'category' => $category,
                 'spent' => $spent,
                 'limit' => $limit,
-                'over_budget_by' => $limit > 0.0 ? ($spent - $limit) / $limit : 0.0,
+                // A zero-budget category is never "a fraction over" a limit
+                // of zero: any spending against it is unconditionally over
+                // budget, not silently exempt from the check below.
+                'over_budget_by' => $limit > 0.0 ? ($spent - $limit) / $limit : ($spent > 0.0 ? INF : 0.0),
             ];
         })->values();
 
@@ -67,9 +76,9 @@ class GenerateMonthlyReportCommand extends Command
             ->implode("\n");
 
         $summaryResponse = (new MonthlyReportSummarizer)->prompt($summaryPrompt);
-        $summary = $summaryResponse->structured['summary'] ?? null;
+        $summary = $this->stringField($summaryResponse->structured, 'summary');
 
-        if (! is_string($summary) || $summary === '') {
+        if ($summary === null) {
             $this->components->error('The assistant returned an incomplete summary. Please try again in a moment.');
 
             return Command::FAILURE;
@@ -92,11 +101,15 @@ class GenerateMonthlyReportCommand extends Command
             ->implode("\n");
 
         $recommendationsResponse = (new OverspendingAdvisor)->prompt($overBudgetPrompt);
-        $recommendations = $recommendationsResponse->structured['recommendations'] ?? null;
+        $recommendations = $this->stringField($recommendationsResponse->structured, 'recommendations');
 
-        if (is_string($recommendations) && $recommendations !== '') {
-            $this->line($recommendations);
+        if ($recommendations === null) {
+            $this->components->error('The assistant returned incomplete recommendations. Please try again in a moment.');
+
+            return Command::FAILURE;
         }
+
+        $this->line($recommendations);
 
         return Command::SUCCESS;
     }

@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Ai\Agents\FactExtractor;
 use App\Ai\Agents\FinanceAssistant;
+use App\Console\Commands\Concerns\ReadsStructuredResponse;
 use App\Models\MemoryFact;
 use App\Support\VectorStore;
 use Illuminate\Console\Attributes\Description;
@@ -18,6 +19,8 @@ use Laravel\Ai\Exceptions\AiException;
 #[Description('Send a one-off message to the assistant, grounded in facts remembered from previous sessions')]
 class AskWithMemoryCommand extends Command
 {
+    use ReadsStructuredResponse;
+
     /**
      * How many of the most relevant remembered facts to retrieve and hand
      * to the assistant alongside the question. Same reasoning as
@@ -114,9 +117,9 @@ class AskWithMemoryCommand extends Command
     {
         try {
             $extracted = (new FactExtractor)->prompt($question);
-            $fact = $extracted->structured['fact'] ?? null;
+            $fact = $this->stringField($extracted->structured, 'fact');
 
-            if (! is_string($fact) || $fact === '') {
+            if ($fact === null) {
                 return;
             }
 

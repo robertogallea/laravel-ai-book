@@ -389,6 +389,44 @@ Tags for this chapter:
   git diff ch10-agentic-monthly-report ch10-orchestrated-monthly-report
   ```
 
+## Chapter 10 - long-term memory: a savings goal that survives past the session that declared it
+
+```bash
+php artisan assistant:ask "I want to save 200 dollars a month for vacation."
+php artisan assistant:ask "What is my savings goal?"
+```
+
+`assistant:ask` has no history and nothing to persist it with: the second call above has no way of
+knowing what the first one said, each invocation is its own self-contained session.
+
+```bash
+php artisan assistant:ask-with-memory "I want to save 200 dollars a month for vacation."
+php artisan assistant:ask-with-memory "What is my savings goal?"
+```
+
+The corrected version adds `assistant:ask-with-memory`, backed by a new data source distinct from
+the transaction history already indexed in Chapter 7: `App\Models\MemoryFact`. After answering,
+every invocation asks `App\Ai\Agents\FactExtractor` whether the message just sent stated something
+worth remembering (a goal, preference, or commitment); if it did, the fact is embedded and
+persisted immediately. Before answering, every invocation retrieves the remembered facts most
+relevant to the current question by embedding similarity, the exact same
+`App\Support\VectorStore::nearest` mechanism already built for transactions in Chapter 7, pointed at
+this new data source instead. The transaction-retrieval pipeline itself is untouched; this is an
+additional data source read by the same mechanism, not a replacement for it.
+
+Tags for this chapter:
+
+- `ch10-no-cross-session-memory` - no new production code; a test shows that a goal declared
+  through the existing `assistant:ask` is unknown to a second, separate invocation of the same
+  command.
+- `ch10-long-term-memory` - adds `MemoryFact`, `App\Ai\Agents\FactExtractor`, and
+  `assistant:ask-with-memory`, which retrieves relevant remembered facts before answering and
+  persists any new one after. Compare the two with:
+
+  ```bash
+  git diff ch10-no-cross-session-memory ch10-long-term-memory
+  ```
+
 ## Tag convention
 
 Tags follow `chNN-slug`, where `NN` is the two-digit chapter number. Multiple tags are added per

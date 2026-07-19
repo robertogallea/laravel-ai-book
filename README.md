@@ -354,6 +354,41 @@ Tags for this chapter:
   git diff ch09-adhoc-exchange-rate-tool ch09-mcp-exchange-rate-tool
   ```
 
+## Chapter 10 - orchestration: a fixed pipeline instead of an autonomous agent for a report with a known shape
+
+```bash
+php artisan assistant:generate-monthly-report
+```
+
+In the agentic version, `MonthlyReportAdvisor` is given the single goal of producing this month's
+report and decides for itself, one `GetBudgetStatusTool` call at a time, which spending categories
+to check before concluding: nothing guarantees that every category `config('finance.budgets')`
+tracks is actually covered, or bounds how many tool calls that costs, since both are left entirely
+to the model's own judgment.
+
+The corrected version replaces that single autonomous goal with a fixed pipeline coordinated by
+`GenerateMonthlyReportCommand` itself: data collection and categorization run as plain application
+code against `Transaction` and `config('finance.budgets')`, not a single model call, so every
+configured category reaches the next step whether or not it had any transactions this month. The
+model is only invoked for the two steps that genuinely need it, a summary of the already-aggregated
+totals (`App\Ai\Agents\MonthlyReportSummarizer`), always, and a set of recommendations
+(`App\Ai\Agents\OverspendingAdvisor`), only for the categories a fixed threshold in the command
+itself has already determined are over budget.
+
+Tags for this chapter:
+
+- `ch10-agentic-monthly-report` - `GenerateMonthlyReportCommand` delegates the whole report to
+  `MonthlyReportAdvisor`, a bounded reasoning-action agent that decides for itself which categories
+  to check.
+- `ch10-orchestrated-monthly-report` - removes `MonthlyReportAdvisor`; rewrites
+  `GenerateMonthlyReportCommand` as a fixed pipeline (data collection, categorization, summary,
+  conditional recommendations) and adds `MonthlyReportSummarizer` and `OverspendingAdvisor`, two
+  narrowly scoped agents invoked as individual steps of that pipeline. Compare the two with:
+
+  ```bash
+  git diff ch10-agentic-monthly-report ch10-orchestrated-monthly-report
+  ```
+
 ## Tag convention
 
 Tags follow `chNN-slug`, where `NN` is the two-digit chapter number. Multiple tags are added per

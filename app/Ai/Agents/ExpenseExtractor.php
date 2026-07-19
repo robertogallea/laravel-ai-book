@@ -3,11 +3,19 @@
 namespace App\Ai\Agents;
 
 use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Laravel\Ai\Attributes\UseCheapestModel;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\HasStructuredOutput;
 use Laravel\Ai\Promptable;
 use Stringable;
 
+/**
+ * A closed-set classification task, picking amount/category/date out of a
+ * few known shapes: the cheapest model the configured provider offers is
+ * routinely enough for this, and routing here, once, is what keeps every
+ * caller from having to make that same judgment call for itself.
+ */
+#[UseCheapestModel]
 class ExpenseExtractor implements Agent, HasStructuredOutput
 {
     use Promptable;

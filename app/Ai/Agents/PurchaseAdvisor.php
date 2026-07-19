@@ -8,6 +8,7 @@ use App\Ai\Tools\GetRecurringExpensesTool;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
 use Laravel\Ai\Attributes\MaxSteps;
+use Laravel\Ai\Attributes\UseSmartestModel;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\HasStructuredOutput;
 use Laravel\Ai\Contracts\HasTools;
@@ -27,8 +28,15 @@ use Stringable;
  * five steps are enough for every tool available here to be called at
  * least once, with room for a repeated or corrective call, but not enough
  * to let an unproductive loop run indefinitely.
+ *
+ * Each of those steps chains onto the last one's observation before this
+ * agent commits to a conclusion: a smaller, cheaper model routed here to
+ * save on the categorization task above would be reasoning about the same
+ * kind of multi-step, interdependent decision on a fraction of the budget
+ * that decision deserves.
  */
 #[MaxSteps(5)]
+#[UseSmartestModel]
 class PurchaseAdvisor implements Agent, HasStructuredOutput, HasTools
 {
     use Promptable;

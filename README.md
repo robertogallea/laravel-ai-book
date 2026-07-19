@@ -427,6 +427,40 @@ Tags for this chapter:
   git diff ch10-no-cross-session-memory ch10-long-term-memory
   ```
 
+## Chapter 10 - model routing: a cheap model for categorization, a capable one for planning
+
+```bash
+php artisan assistant:log-expense "Coffee, 12.50 dollars, today."
+php artisan assistant:assess-purchase 600 "a new laptop"
+```
+
+Neither `App\Ai\Agents\ExpenseExtractor` (Chapter 3) nor `App\Ai\Agents\PurchaseAdvisor` (Chapter 8)
+originally declared which model to use, so both silently resolved to the same provider default,
+regardless of how simple or demanding the task actually was.
+
+The corrected version routes each to a different tier of the same configured provider, using
+`laravel/ai`'s own class-level attributes instead of a hand-rolled routing function:
+`ExpenseExtractor` is annotated `#[UseCheapestModel]`, since picking amount/category/date out of a
+handful of known shapes is a closed-set classification task; `PurchaseAdvisor` is annotated
+`#[UseSmartestModel]`, since its reasoning-action loop chains several interdependent decisions
+before concluding. Neither agent's instructions, schema, or tools change at all: only which model
+answers the call. With the OpenAI provider this app is configured with, that resolves to
+`gpt-5.4-nano` for categorization and `gpt-5.4-pro` for planning, chosen because they sit at
+opposite ends of the same provider's capability range, not for any property specific to OpenAI: a
+different configured provider would resolve the same two attributes to its own cheapest and
+smartest models instead.
+
+Tags for this chapter:
+
+- `ch10-undifferentiated-model` - no new production code; a test shows that `ExpenseExtractor` and
+  `PurchaseAdvisor` currently resolve to the exact same model.
+- `ch10-routed-model-per-task` - adds `#[UseCheapestModel]` to `ExpenseExtractor` and
+  `#[UseSmartestModel]` to `PurchaseAdvisor`. Compare the two with:
+
+  ```bash
+  git diff ch10-undifferentiated-model ch10-routed-model-per-task
+  ```
+
 ## Tag convention
 
 Tags follow `chNN-slug`, where `NN` is the two-digit chapter number. Multiple tags are added per

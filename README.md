@@ -242,19 +242,21 @@ Tags for this chapter:
 ## Chapter 7 - RAG: grounding spending questions in real transactions
 
 ```bash
-php artisan assistant:ask-spending "How much did I spend on restaurants this month?"
+php artisan db:seed
+php artisan assistant:ask-spending "How much did I spend on restaurants this month?" --user=test@example.com
 ```
 
-In the ungrounded version, the assistant answers from its own general knowledge alone: it never
-sees the user's actual transactions, so a question that depends on them gets a generic reply
-(a budgeting rule of thumb) or a request for the figures it does not have, never the real
-numbers. The grounded version retrieves the transactions most relevant to the question before
+`db:seed` creates the demo user (`test@example.com`) every `--user` option in this README refers
+to, from here on. In the ungrounded version, the assistant answers from its own general knowledge
+alone: it never sees the user's actual transactions, so a question that depends on them gets a
+generic reply (a budgeting rule of thumb) or a request for the figures it does not have, never the
+real numbers. The grounded version retrieves the transactions most relevant to the question before
 answering it:
 
 ```bash
 php artisan db:seed --class=Database\\Seeders\\TransactionSeeder
 php artisan assistant:index-transactions
-php artisan assistant:ask-spending "How much did I spend on restaurants this month?"
+php artisan assistant:ask-spending "How much did I spend on restaurants this month?" --user=test@example.com
 ```
 
 Seeding creates a handful of fictitious transactions across categories (`App\Models\Transaction`);
@@ -547,8 +549,8 @@ Tags for this chapter:
 ## Chapter 11 - caching frequent questions, batching non-urgent reports
 
 ```bash
-php artisan assistant:ask-spending "How much did I spend on restaurants this month?"
-php artisan assistant:request-monthly-report
+php artisan assistant:ask-spending "How much did I spend on restaurants this month?" --user=test@example.com
+php artisan assistant:request-monthly-report --user=test@example.com
 php artisan assistant:process-report-queue
 ```
 
@@ -590,7 +592,7 @@ Tags for this chapter:
 ## Chapter 12 - an explicit permission boundary for a multi-user application
 
 ```bash
-php artisan assistant:ask-spending "How much have I spent recently?" --user=alice@example.com
+php artisan assistant:ask-spending "How much have I spent recently?" --user=test@example.com
 ```
 
 Every chapter up to this point implicitly assumed a single user. This increment adds `user_id` to

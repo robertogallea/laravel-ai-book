@@ -46,9 +46,13 @@ class Transaction extends Model
      * missing key on increment, only array/redis-like stores do, so
      * relying on increment alone would silently never bump this version
      * under the store this app actually runs on. Not perfectly atomic
-     * under concurrent writes, an acceptable trade for a single-user
-     * application, in exchange for behaving the same way on every cache
-     * store instead of only some.
+     * under concurrent writes, an accepted trade in exchange for behaving
+     * the same way on every cache store instead of only some. Shared
+     * across every user on purpose, not scoped per user: a transaction
+     * belonging to one user still invalidates every other user's cached
+     * spending answers too, a safe but wasteful over-invalidation rather
+     * than a correctness gap, and a cheaper failure mode than the
+     * opposite mistake of a cached answer nobody ever invalidates.
      */
     private static function bumpSpendingAnswersCacheVersion(): void
     {

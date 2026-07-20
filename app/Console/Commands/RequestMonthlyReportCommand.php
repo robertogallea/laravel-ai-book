@@ -18,11 +18,13 @@ class RequestMonthlyReportCommand extends Command
      * wants the report right now, this command never runs the pipeline
      * itself: it only records that a report is wanted, for
      * ProcessReportQueueCommand's next scheduled run to pick up alongside
-     * whatever else is pending.
+     * whatever else is pending. The current month is fixed here, at
+     * request time, precisely so that a batch delayed past a month
+     * boundary still answers for the month actually requested.
      */
     public function handle(): int
     {
-        ReportRequest::create(['status' => 'pending']);
+        ReportRequest::create(['month' => now()->format('Y-m'), 'status' => 'pending']);
 
         $this->components->info('Report queued. You will receive it at the next scheduled batch, not immediately.');
 

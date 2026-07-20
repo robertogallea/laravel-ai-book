@@ -70,7 +70,10 @@ class CachedBatchedCostComparisonTest extends TestCase
 
         // One scheduled batch answers all three requests with a single run.
         $this->artisan('assistant:process-report-queue')
-            ->expectsOutputToContain('Processed 3 pending report request(s) in a single batched run.')
+            ->expectsOutputToContain(sprintf(
+                'Processed 3 pending report request(s) for %s in a single batched run.',
+                now()->format('Y-m'),
+            ))
             ->assertExitCode(0);
 
         $this->assertSame(3, ReportRequest::where('status', 'processed')->count());

@@ -10,9 +10,10 @@ use App\Support\CallTrace;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
+use Illuminate\Support\Carbon;
 
-#[Signature('assistant:generate-monthly-report')]
-#[Description("Generate this month's spending report")]
+#[Signature('assistant:generate-monthly-report {month? : Target month in Y-m format (e.g. 2026-07), defaults to the current month}')]
+#[Description('Generate a spending report for the given month, or the current one')]
 class GenerateMonthlyReportCommand extends Command
 {
     use ReadsStructuredResponse;
@@ -38,13 +39,22 @@ class GenerateMonthlyReportCommand extends Command
      */
     public function handle(): int
     {
+        // The month argument exists for ProcessReportQueueCommand, which
+        // must report on whatever month a queued request was actually
+        // made for, not whatever month happens to be current by the time
+        // the batch runs: invoked directly with no argument, this still
+        // behaves exactly as before, reporting on the current month.
+        $month = $this->argument('month')
+            ? Carbon::createFromFormat('Y-m', $this->argument('month'))
+            : now();
+
         // Step 1: raccolta dati. Neither query depends on the other; an
         // application with an async runtime could dispatch them together,
         // here they simply run one after the other, a single console
         // command has no need for that complexity to make the same point
         // about coordination.
-        $transactions = Transaction::whereYear('occurred_at', now()->year)
-            ->whereMonth('occurred_at', now()->month)
+        $transactions = Transaction::whereYear('occurred_at', $month->year)
+            ->whereMonth('occurred_at', $month->month)
             ->get();
 
         $budgets = collect(config('finance.budgets'));

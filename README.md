@@ -564,12 +564,15 @@ requests. A question answered once is cached under a key that combines the norma
 with a version counter bumped every time `App\Models\Transaction` gets a new row or an existing one
 is modified (see `Transaction::booted()`): asking again before anything changes is answered from
 cache, no model call, nothing traced; a single new or modified transaction makes every previously
-cached answer unreachable at once. `assistant:request-monthly-report` no longer generates anything immediately: it
-only queues a request, and `assistant:process-report-queue` answers every pending request for the
-month with a single run of the existing `GenerateMonthlyReportCommand` pipeline, whether one request
-is pending or three. Running the exact same scenario measured above against this corrected version
-traces only two calls, 100 tokens for the one real question and 190 for the one real report: 290
-tokens total, against 870 before, for the same six original requests.
+cached answer unreachable at once. `assistant:request-monthly-report` no longer generates anything
+immediately: it records the target month and queues a request, and `assistant:process-report-queue`
+answers every pending request for a given month with a single run of the existing
+`GenerateMonthlyReportCommand` pipeline, whether one request is pending for that month or three, and
+correctly for whichever month was actually requested even if the batch runs after that month has
+ended. A cache lock keeps two overlapping runs of the queue processor from both generating the same
+report. Running the exact same scenario measured above against this corrected version traces only
+two calls, 100 tokens for the one real question and 190 for the one real report: 290 tokens total,
+against 870 before, for the same six original requests.
 
 Tags for this chapter:
 

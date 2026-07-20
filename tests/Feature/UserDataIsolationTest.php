@@ -97,19 +97,9 @@ class UserDataIsolationTest extends TestCase
         );
     }
 
-    public function test_an_unknown_user_email_is_rejected(): void
-    {
-        FinanceAssistant::fake();
-
-        $this->artisan('assistant:ask-spending', [
-            'question' => 'How much have I spent recently?',
-            '--user' => 'nobody@example.com',
-        ])
-            ->expectsOutputToContain('No user found with email "nobody@example.com"')
-            ->assertExitCode(2);
-
-        FinanceAssistant::assertNeverPrompted();
-    }
+    // Unknown-email rejection is covered once, in AskSpendingCommandTest,
+    // not duplicated here: this file's own concern is isolation between
+    // known users, not option validation.
 
     public function test_the_trace_of_a_grounded_question_records_which_user_asked_it(): void
     {

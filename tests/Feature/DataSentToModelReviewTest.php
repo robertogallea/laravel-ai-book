@@ -34,10 +34,11 @@ class DataSentToModelReviewTest extends TestCase
         $this->artisan('assistant:log-expense-from-document', ['text' => $longImportedText])
             ->assertExitCode(0);
 
+        // Pinned to the exact cut point, not just "shorter than the
+        // original and a valid prefix": a regression that truncated to
+        // the wrong length would still satisfy the weaker check.
         ImportedDocumentReader::assertPrompted(
-            fn ($prompt) => $prompt->prompt !== $longImportedText
-                && strlen($prompt->prompt) <= 4000
-                && str_starts_with($longImportedText, $prompt->prompt)
+            fn ($prompt) => $prompt->prompt === mb_substr($longImportedText, 0, 4000)
         );
     }
 

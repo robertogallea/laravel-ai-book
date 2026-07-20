@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Ai\Agents\SpendingAnalyst;
+use App\Console\Commands\Concerns\DisclosesAiInteraction;
 use App\Support\CallTrace;
 use Closure;
 use Illuminate\Console\Attributes\Description;
@@ -18,6 +19,8 @@ use Throwable;
 #[Description('Ask the assistant for the total spent so far in a category and a short insight about the trend')]
 class AnalyzeSpendingCommand extends Command
 {
+    use DisclosesAiInteraction;
+
     /**
      * How many times to attempt the call after a technical failure, before
      * giving up and falling back. Bounded on purpose, same reasoning as the
@@ -53,6 +56,8 @@ class AnalyzeSpendingCommand extends Command
      */
     public function handle(): int
     {
+        $this->discloseAiInteraction();
+
         $category = $this->argument('category');
         $amounts = array_map('floatval', $this->argument('amounts'));
         $knownTotal = array_sum($amounts);

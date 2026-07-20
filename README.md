@@ -587,6 +587,43 @@ Tags for this chapter:
   git diff ch11-uncached-unbatched-cost ch11-cached-batched-cost
   ```
 
+## Chapter 12 - an explicit permission boundary for a multi-user application
+
+```bash
+php artisan assistant:ask-spending "How much have I spent recently?" --user=alice@example.com
+```
+
+Every chapter up to this point implicitly assumed a single user. This increment adds `user_id` to
+`Transaction` and a `--user` option to `assistant:ask-spending`, then asks the same question this
+chapter asks of the whole application: does knowing who is asking actually restrict what they can
+see?
+
+The first version says no. The option exists and is validated (the given email must be on record),
+but retrieval still runs `Transaction::query()->whereNotNull('embedding')->get()` exactly as
+before, unfiltered by owner. A test seeds a transaction for one user and asks a question as a
+different user with nothing of their own on file: the other user's transaction still gets folded
+into the augmented prompt.
+
+The corrected version makes the resolved user an explicit, required argument threaded through
+retrieval, the answer cache key, and `CallTrace::record`, instead of an ambient or ignored one.
+`Transaction::scopeOwnedBy` is the single call every read of a user's transactions goes through.
+`CallTrace` gains an optional `user` field, closing the anticipation left open when it was first
+introduced in Chapter 6. Re-running the same test against this version, the other user's
+transaction never becomes a retrieval candidate in the first place.
+
+Tags for this chapter:
+
+- `ch12-implicit-user-scope` - adds `user_id` to `transactions` and a `--user` option to
+  `assistant:ask-spending`, validated but not enforced; a test shows another user's transaction
+  surfacing regardless of which `--user` was given.
+- `ch12-explicit-user-scope-and-audit` - adds `Transaction::scopeOwnedBy`, threads the resolved
+  user through retrieval, the cache key, and `CallTrace::record`, and re-runs the same test showing
+  no cross-user leakage. Compare the two with:
+
+  ```bash
+  git diff ch12-implicit-user-scope ch12-explicit-user-scope-and-audit
+  ```
+
 ## Tag convention
 
 Tags follow `chNN-slug`, where `NN` is the two-digit chapter number. Multiple tags are added per

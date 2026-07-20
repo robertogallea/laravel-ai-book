@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Ai\Agents\FinanceAssistant;
 use App\Models\Transaction;
+use App\Support\CallTrace;
 use App\Support\VectorStore;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -57,6 +58,12 @@ class AskSpendingCommand extends Command
         }
 
         $response = (new FinanceAssistant)->prompt($prompt);
+
+        // Traced the same way as every other model call in this
+        // application since the chapter on resilience: this is what makes
+        // the cost of answering the same question, once or repeatedly,
+        // something to measure instead of something to guess.
+        CallTrace::record($prompt, $response);
 
         $this->line($response->text);
 

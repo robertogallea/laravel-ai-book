@@ -6,6 +6,7 @@ use App\Ai\Agents\MonthlyReportSummarizer;
 use App\Ai\Agents\OverspendingAdvisor;
 use App\Console\Commands\Concerns\ReadsStructuredResponse;
 use App\Models\Transaction;
+use App\Support\CallTrace;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -76,6 +77,13 @@ class GenerateMonthlyReportCommand extends Command
             ->implode("\n");
 
         $summaryResponse = (new MonthlyReportSummarizer)->prompt($summaryPrompt);
+
+        // Traced the same way as every other model call in this
+        // application since the chapter on resilience: this is what makes
+        // the cost of running this pipeline, once or a thousand times,
+        // something to measure instead of something to guess.
+        CallTrace::record($summaryPrompt, $summaryResponse);
+
         $summary = $this->stringField($summaryResponse->structured, 'summary');
 
         if ($summary === null) {
@@ -101,6 +109,9 @@ class GenerateMonthlyReportCommand extends Command
             ->implode("\n");
 
         $recommendationsResponse = (new OverspendingAdvisor)->prompt($overBudgetPrompt);
+
+        CallTrace::record($overBudgetPrompt, $recommendationsResponse);
+
         $recommendations = $this->stringField($recommendationsResponse->structured, 'recommendations');
 
         if ($recommendations === null) {

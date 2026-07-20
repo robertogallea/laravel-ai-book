@@ -2,16 +2,29 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * A request for this month's report from someone who does not need it
+ * A request for a given month's report from someone who does not need it
  * immediately, held until ProcessReportQueueCommand's next scheduled run.
- * However many of these accumulate before that run, they all describe the
- * exact same report: batching them costs the same single run either way.
+ * However many requests for the same month accumulate before that run,
+ * they all describe the exact same report: batching them costs the same
+ * single run either way.
  */
 class ReportRequest extends Model
 {
+    use HasFactory;
+
+    /**
+     * The two statuses a request moves through, named once here instead
+     * of as a string literal repeated across every command that reads or
+     * writes one.
+     */
+    public const STATUS_PENDING = 'pending';
+
+    public const STATUS_PROCESSED = 'processed';
+
     protected $table = 'report_requests';
 
     protected $guarded = [];

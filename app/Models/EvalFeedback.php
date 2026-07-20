@@ -15,6 +15,17 @@ class EvalFeedback extends Model
 {
     use HasFactory;
 
+    /**
+     * The three statuses a feedback row moves through, named once here
+     * instead of as a string literal repeated across every command and
+     * factory that reads or writes one.
+     */
+    public const STATUS_PENDING_REVIEW = 'pending_review';
+
+    public const STATUS_CONFIRMED = 'confirmed';
+
+    public const STATUS_DISMISSED = 'dismissed';
+
     protected $table = 'eval_feedback';
 
     protected $guarded = [];

@@ -24,7 +24,7 @@ class RequestMonthlyReportCommand extends Command
      */
     public function handle(): int
     {
-        ReportRequest::create(['month' => now()->format('Y-m'), 'status' => 'pending']);
+        ReportRequest::create(['month' => now()->format('Y-m'), 'status' => ReportRequest::STATUS_PENDING]);
 
         $this->components->info('Report queued. You will receive it at the next scheduled batch, not immediately.');
 

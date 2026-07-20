@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Ai\Agents\ExpenseExtractor;
 use App\Models\EvalFeedback;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -21,10 +22,8 @@ class EvalFeedbackFactory extends Factory
     {
         return [
             'input' => fake()->sentence(),
-            'category' => fake()->randomElement([
-                'groceries', 'restaurants', 'transportation', 'entertainment', 'utilities', 'other',
-            ]),
-            'status' => 'pending_review',
+            'category' => fake()->randomElement(ExpenseExtractor::CATEGORIES),
+            'status' => EvalFeedback::STATUS_PENDING_REVIEW,
             'expected_category' => null,
         ];
     }

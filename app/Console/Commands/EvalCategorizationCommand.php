@@ -3,9 +3,9 @@
 namespace App\Console\Commands;
 
 use App\Ai\Agents\ExpenseExtractor;
+use App\Console\Commands\Concerns\RunsEvalSet;
 use App\Models\EvalFeedback;
 use App\Support\Eval\EvalCase;
-use App\Support\Eval\EvalRunner;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -14,6 +14,8 @@ use Illuminate\Console\Command;
 #[Description('Run the expense-categorization eval set against the current prompt and gate on a full pass')]
 class EvalCategorizationCommand extends Command
 {
+    use RunsEvalSet;
+
     /**
      * Reference cases for the categorization prompt (Chapter 3). Correctness
      * here reduces to a single equality check: a closed-set classification
@@ -69,7 +71,7 @@ class EvalCategorizationCommand extends Command
      */
     private function confirmedFeedbackCases(): array
     {
-        return EvalFeedback::where('status', 'confirmed')
+        return EvalFeedback::where('status', EvalFeedback::STATUS_CONFIRMED)
             ->get()
             ->map(fn (EvalFeedback $feedback) => new EvalCase(
                 name: "confirmed_feedback_{$feedback->id}",
@@ -81,24 +83,10 @@ class EvalCategorizationCommand extends Command
 
     public function handle(): int
     {
-        $cases = $this->cases();
-
-        $failed = EvalRunner::run(
-            $cases,
+        return $this->runEvalSet(
+            'Categorization',
+            $this->cases(),
             fn (string $input) => (new ExpenseExtractor)->prompt($input)->structured,
         );
-
-        $total = count($cases);
-        $passed = $total - count($failed);
-
-        $this->line("Categorization eval: {$passed}/{$total} cases passed.");
-
-        if ($failed !== []) {
-            $this->components->error('Failed cases: '.implode(', ', $failed));
-
-            return Command::FAILURE;
-        }
-
-        return Command::SUCCESS;
     }
 }

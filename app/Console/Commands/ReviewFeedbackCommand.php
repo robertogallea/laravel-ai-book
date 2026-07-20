@@ -28,7 +28,7 @@ class ReviewFeedbackCommand extends Command
      */
     public function handle(): int
     {
-        $pending = EvalFeedback::where('status', 'pending_review')->get();
+        $pending = EvalFeedback::where('status', EvalFeedback::STATUS_PENDING_REVIEW)->get();
 
         if ($pending->isEmpty()) {
             $this->components->info('No feedback pending review.');
@@ -47,7 +47,7 @@ class ReviewFeedbackCommand extends Command
             $this->line("Assistant returned category: {$feedback->category}");
 
             if (! confirm(label: 'Is this a genuine miscategorization?', default: true)) {
-                $feedback->update(['status' => 'dismissed']);
+                $feedback->update(['status' => EvalFeedback::STATUS_DISMISSED]);
                 $this->components->warn('Dismissed: not added to the eval dataset.');
 
                 continue;
@@ -58,7 +58,7 @@ class ReviewFeedbackCommand extends Command
                 options: ExpenseExtractor::CATEGORIES,
             );
 
-            $feedback->update(['status' => 'confirmed', 'expected_category' => $expected]);
+            $feedback->update(['status' => EvalFeedback::STATUS_CONFIRMED, 'expected_category' => $expected]);
             $this->components->info("Confirmed: added to the eval dataset as \"{$expected}\".");
         }
 

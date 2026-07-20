@@ -52,7 +52,7 @@ class ProcessReportQueueCommand extends Command
      */
     private function processPendingRequests(): int
     {
-        $pending = ReportRequest::where('status', 'pending')->get();
+        $pending = ReportRequest::where('status', ReportRequest::STATUS_PENDING)->get();
 
         if ($pending->isEmpty()) {
             $this->components->info('No report requests pending.');
@@ -71,7 +71,7 @@ class ProcessReportQueueCommand extends Command
                 continue;
             }
 
-            ReportRequest::whereIn('id', $requestsForMonth->pluck('id'))->update(['status' => 'processed']);
+            ReportRequest::whereIn('id', $requestsForMonth->pluck('id'))->update(['status' => ReportRequest::STATUS_PROCESSED]);
 
             $this->components->info(sprintf(
                 'Processed %d pending report request(s) for %s in a single batched run.',

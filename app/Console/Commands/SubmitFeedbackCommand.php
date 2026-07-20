@@ -39,7 +39,7 @@ class SubmitFeedbackCommand extends Command
         EvalFeedback::create([
             'input' => $this->argument('description'),
             'category' => $this->argument('category'),
-            'status' => 'pending_review',
+            'status' => EvalFeedback::STATUS_PENDING_REVIEW,
         ]);
 
         $this->components->info('Feedback recorded. This case has been queued for review.');

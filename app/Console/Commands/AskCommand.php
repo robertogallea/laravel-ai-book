@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Ai\Agents\FinanceAssistant;
+use App\Console\Commands\Concerns\DisclosesAiInteraction;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -11,6 +12,8 @@ use Illuminate\Console\Command;
 #[Description('Send a single, one-off question to the finance assistant (no conversation history)')]
 class AskCommand extends Command
 {
+    use DisclosesAiInteraction;
+
     /**
      * Execute the console command.
      *
@@ -20,6 +23,8 @@ class AskCommand extends Command
      */
     public function handle(): void
     {
+        $this->discloseAiInteraction();
+
         $response = (new FinanceAssistant)->prompt($this->argument('question'));
 
         $this->line($response->text);

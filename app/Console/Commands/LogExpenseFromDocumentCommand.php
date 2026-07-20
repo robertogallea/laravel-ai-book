@@ -20,6 +20,15 @@ class LogExpenseFromDocumentCommand extends Command
     private const MAX_ATTEMPTS = 3;
 
     /**
+     * How much of an imported document is actually sent to the reader.
+     * An expense worth logging states its amount, place, and date in a
+     * sentence or two, never in thousands of characters: nothing this
+     * command does needs the rest of a long statement or email thread,
+     * so nothing beyond this length ever leaves the application.
+     */
+    private const MAX_IMPORTED_TEXT_LENGTH = 4000;
+
+    /**
      * How many consecutive words of the reader's own instructions, once
      * case, whitespace, and punctuation are normalized away, count as an
      * unmistakable quote. Short enough that quoting only part of a
@@ -53,14 +62,17 @@ class LogExpenseFromDocumentCommand extends Command
      *
      * Imported text does not come from the user typing in the chat: it may
      * be the body of an email or a document, so it is read here before the
-     * usual structured extraction is attempted on it. The imported text is
-     * passed on its own, exactly as received, never merged with any other
-     * instruction at request time: the extraction instruction lives only in
-     * the reader's own instructions, fixed ahead of time.
+     * usual structured extraction is attempted on it. Whatever reaches the
+     * reader is passed on its own, never merged with any other instruction
+     * at request time: the extraction instruction lives only in the
+     * reader's own instructions, fixed ahead of time. What reaches the
+     * reader is capped in length first: a full statement or email thread
+     * has no reason to leave the application in its entirety just to
+     * extract one expense from it.
      */
     public function handle(): int
     {
-        $importedText = $this->argument('text');
+        $importedText = mb_substr($this->argument('text'), 0, self::MAX_IMPORTED_TEXT_LENGTH);
 
         try {
             $description = (new ImportedDocumentReader)->prompt($importedText)->text;

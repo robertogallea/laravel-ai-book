@@ -31,16 +31,22 @@ report pipeline sends pre-aggregated category totals, never a raw transaction (C
 tool `assistant:assess-purchase` can call returns an aggregate figure or a short list, not a
 transaction dump (Chapter 8).
 
-Two gaps remain, neither addressed by any earlier chapter because neither is a security or
-resilience concern in the sense those chapters cared about:
+Two gaps remained, neither addressed by any earlier chapter because neither is a security or
+resilience concern in the sense those chapters cared about. Both are fixed as of this revision of
+this document:
 
-1. **No cap on the imported document.** `assistant:log-expense-from-document` sends the entire
-   imported text to the model, however long it is, to extract a single sentence out of it. Nothing
-   bounds this today: a multi-page statement or a long email thread would be sent to a third-party
-   API in full to extract one expense's amount, place, and date.
-2. **No disclosure anywhere.** Not one command in this application ever tells the user they are
-   talking to an automated system rather than a person. `assistant:chat` prints a plain "Chatting
-   with the finance assistant" line; nothing about it says "AI", "automated", or "assistant" in a
-   way that reads as a disclosure rather than a command's own label.
+1. **No cap on the imported document.** `assistant:log-expense-from-document` sent the entire
+   imported text to the model, however long it was, to extract a single sentence out of it.
+   Nothing bounded this: a multi-page statement or a long email thread would have been sent to a
+   third-party API in full to extract one expense's amount, place, and date. Fixed by capping the
+   imported text to its first 4000 characters before it ever reaches the reader: an expense worth
+   logging states its amount, place, and date long before that point, and nothing this command
+   does needs the rest.
+2. **No disclosure anywhere.** Not one command in this application ever told the user they were
+   talking to an automated system rather than a person. Fixed by having every command that puts
+   the user in direct conversation with an agent, one-off or ongoing (`assistant:ask`,
+   `assistant:ask-spending`, `assistant:ask-with-memory`, `assistant:chat`), print the same
+   one-line disclosure before anything else happens.
 
-Both are addressed in the increment that follows this review.
+Everything else in the table above is unchanged: this revision touches only the two commands
+named above, and no command's underlying business logic.

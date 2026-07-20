@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Ai\Agents\FactExtractor;
 use App\Ai\Agents\FinanceAssistant;
+use App\Console\Commands\Concerns\DisclosesAiInteraction;
 use App\Console\Commands\Concerns\ReadsStructuredResponse;
 use App\Models\MemoryFact;
 use App\Support\VectorStore;
@@ -19,6 +20,7 @@ use Laravel\Ai\Exceptions\AiException;
 #[Description('Send a one-off message to the assistant, grounded in facts remembered from previous sessions')]
 class AskWithMemoryCommand extends Command
 {
+    use DisclosesAiInteraction;
     use ReadsStructuredResponse;
 
     /**
@@ -50,6 +52,8 @@ class AskWithMemoryCommand extends Command
      */
     public function handle(): int
     {
+        $this->discloseAiInteraction();
+
         $question = $this->argument('question');
 
         try {

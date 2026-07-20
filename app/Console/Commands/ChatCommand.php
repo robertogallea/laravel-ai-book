@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Ai\Agents\FinanceAssistant;
+use App\Console\Commands\Concerns\DisclosesAiInteraction;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -19,6 +20,8 @@ use function Laravel\Prompts\text;
 #[Description('Chat with the personal finance assistant about your spending')]
 class ChatCommand extends Command
 {
+    use DisclosesAiInteraction;
+
     /**
      * Maximum number of past messages kept in the sliding window sent to the model.
      */
@@ -34,6 +37,8 @@ class ChatCommand extends Command
      */
     public function handle(): void
     {
+        $this->discloseAiInteraction();
+
         info('Chatting with the finance assistant. Type "exit" to end the conversation.');
 
         /** @var Message[] $history */

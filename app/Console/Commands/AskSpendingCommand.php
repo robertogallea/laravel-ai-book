@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Ai\Agents\FinanceAssistant;
+use App\Console\Commands\Concerns\DisclosesAiInteraction;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Support\CallTrace;
@@ -20,6 +21,8 @@ use Laravel\Ai\Exceptions\AiException;
 #[Description('Ask the assistant a question about the user\'s spending history, grounded in the user\'s actual transactions')]
 class AskSpendingCommand extends Command
 {
+    use DisclosesAiInteraction;
+
     /**
      * How many of the most relevant transactions to retrieve and hand to
      * the assistant alongside the question. Bounded on purpose: handing
@@ -66,6 +69,8 @@ class AskSpendingCommand extends Command
      */
     public function handle(): int
     {
+        $this->discloseAiInteraction();
+
         $question = $this->argument('question');
         $email = $this->option('user');
 

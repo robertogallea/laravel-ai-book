@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Transaction;
+use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
@@ -14,10 +15,18 @@ class TransactionSeeder extends Seeder
     /**
      * Seed a small, fictitious transaction history: enough to observe a
      * retrieval that actually has to choose among categories, not just
-     * confirm the only row available.
+     * confirm the only row available. Owned by the same demo user
+     * DatabaseSeeder creates, found or created here too so this seeder
+     * still produces retrievable data when run on its own, exactly as
+     * the README's own walkthroughs do.
      */
     public function run(): void
     {
+        $user = User::firstOrCreate(
+            ['email' => 'test@example.com'],
+            ['name' => 'Test User'],
+        );
+
         $today = Carbon::parse('2026-07-17');
 
         $transactions = [
@@ -33,6 +42,7 @@ class TransactionSeeder extends Seeder
 
         foreach ($transactions as $transaction) {
             Transaction::create([
+                'user_id' => $user->id,
                 'merchant' => $transaction['merchant'],
                 'category' => $transaction['category'],
                 'amount' => $transaction['amount'],

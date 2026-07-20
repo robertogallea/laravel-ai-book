@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Ai\Agents\ExpenseExtractor;
+use App\Console\Commands\Concerns\DisclosesAiInteraction;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -11,6 +12,8 @@ use Illuminate\Console\Command;
 #[Description('Extract amount, category, and date from a described expense')]
 class LogExpenseCommand extends Command
 {
+    use DisclosesAiInteraction;
+
     /**
      * How many times to ask the model again after an invalid structured
      * response, before giving up. Bounded on purpose: correcting a bad
@@ -29,6 +32,8 @@ class LogExpenseCommand extends Command
      */
     public function handle(): int
     {
+        $this->discloseAiInteraction();
+
         $description = $this->argument('description');
         $prompt = $description;
 

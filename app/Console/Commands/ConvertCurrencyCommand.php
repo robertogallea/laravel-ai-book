@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Ai\Agents\CurrencyAdvisor;
+use App\Console\Commands\Concerns\DisclosesAiInteraction;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -11,11 +12,15 @@ use Illuminate\Console\Command;
 #[Description('Ask the assistant a currency-conversion question, backed by a live exchange rate')]
 class ConvertCurrencyCommand extends Command
 {
+    use DisclosesAiInteraction;
+
     /**
      * Execute the console command.
      */
     public function handle(): void
     {
+        $this->discloseAiInteraction();
+
         $response = (new CurrencyAdvisor)->prompt($this->argument('question'));
 
         $this->line($response->text);

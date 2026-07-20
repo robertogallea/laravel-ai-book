@@ -50,3 +50,15 @@ this document:
 
 Everything else in the table above is unchanged: this revision touches only the two commands
 named above, and no command's underlying business logic.
+
+## Update: disclosure extended to every conversational command
+
+A later pass caught that the fix above stopped at 4 commands while `assistant:log-expense`,
+`assistant:log-expense-from-document`, `assistant:assess-purchase`, `assistant:analyze-spending`,
+and `assistant:convert-currency` also send what the user just typed straight to an agent and print
+its response back, with no disclosure. `DisclosesAiInteraction` now covers all nine: every command
+in this application that answers the user directly, in the moment, discloses it. Commands that
+only run a fixed evaluation case or generate a report for later delivery (the `assistant:eval-*`
+pair, `assistant:generate-monthly-report`, `assistant:request-monthly-report`,
+`assistant:process-report-queue`) have no such moment to disclose at and remain out of scope for
+this trait, not merely unaddressed.

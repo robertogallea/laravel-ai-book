@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Ai\Agents\ExpenseExtractor;
 use App\Ai\Agents\ImportedDocumentReader;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class LogExpenseFromDocumentCommandTest extends TestCase
@@ -155,5 +156,37 @@ class LogExpenseFromDocumentCommandTest extends TestCase
         $this->artisan('assistant:log-expense-from-document', ['text' => self::IMPORTED_TEXT])
             ->expectsOutputToContain('The expense extractor could not be reached: simulated provider outage')
             ->assertExitCode(1);
+    }
+
+    public function test_a_document_longer_than_the_cap_is_reported_as_truncated(): void
+    {
+        $longImportedText = self::IMPORTED_TEXT.Str::repeat(' Unrelated boilerplate.', 2000);
+
+        ImportedDocumentReader::fake([
+            'A restaurant charge of $38.20 dated 2026-07-14.',
+        ]);
+
+        ExpenseExtractor::fake([
+            ['amount' => 38.20, 'category' => 'restaurants', 'date' => '2026-07-14'],
+        ]);
+
+        $this->artisan('assistant:log-expense-from-document', ['text' => $longImportedText])
+            ->expectsOutputToContain('The imported text was truncated to its first 4000 characters before being read.')
+            ->assertExitCode(0);
+    }
+
+    public function test_a_document_within_the_cap_reports_no_truncation(): void
+    {
+        ImportedDocumentReader::fake([
+            'A restaurant charge of $38.20 dated 2026-07-14.',
+        ]);
+
+        ExpenseExtractor::fake([
+            ['amount' => 38.20, 'category' => 'restaurants', 'date' => '2026-07-14'],
+        ]);
+
+        $this->artisan('assistant:log-expense-from-document', ['text' => self::IMPORTED_TEXT])
+            ->doesntExpectOutputToContain('truncated')
+            ->assertExitCode(0);
     }
 }

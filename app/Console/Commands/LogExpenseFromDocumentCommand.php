@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Ai\Agents\ExpenseExtractor;
 use App\Ai\Agents\ImportedDocumentReader;
+use App\Console\Commands\Concerns\DisclosesAiInteraction;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -12,6 +13,8 @@ use Illuminate\Console\Command;
 #[Description('Extract an expense from a piece of text imported from an email or document')]
 class LogExpenseFromDocumentCommand extends Command
 {
+    use DisclosesAiInteraction;
+
     /**
      * How many times to ask the extractor again after an invalid structured
      * response, before giving up. Same bound already used for expenses
@@ -68,11 +71,24 @@ class LogExpenseFromDocumentCommand extends Command
      * reader's own instructions, fixed ahead of time. What reaches the
      * reader is capped in length first: a full statement or email thread
      * has no reason to leave the application in its entirety just to
-     * extract one expense from it.
+     * extract one expense from it. A document actually cut by that cap
+     * is reported as such: a failure to find a recognizable expense past
+     * this point should never look identical to a genuinely unparseable
+     * document.
      */
     public function handle(): int
     {
-        $importedText = mb_substr($this->argument('text'), 0, self::MAX_IMPORTED_TEXT_LENGTH);
+        $this->discloseAiInteraction();
+
+        $rawText = $this->argument('text');
+        $importedText = mb_substr($rawText, 0, self::MAX_IMPORTED_TEXT_LENGTH);
+
+        if (mb_strlen($rawText) > self::MAX_IMPORTED_TEXT_LENGTH) {
+            $this->components->warn(sprintf(
+                'The imported text was truncated to its first %d characters before being read.',
+                self::MAX_IMPORTED_TEXT_LENGTH,
+            ));
+        }
 
         try {
             $description = (new ImportedDocumentReader)->prompt($importedText)->text;

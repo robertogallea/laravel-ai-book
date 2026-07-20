@@ -6,7 +6,9 @@ use App\Ai\Agents\FactExtractor;
 use App\Ai\Agents\FinanceAssistant;
 use App\Console\Commands\Concerns\DisclosesAiInteraction;
 use App\Console\Commands\Concerns\ReadsStructuredResponse;
+use App\Console\Commands\Concerns\ResolvesUserOption;
 use App\Models\MemoryFact;
+use App\Models\User;
 use App\Support\VectorStore;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -16,12 +18,13 @@ use Illuminate\Support\Collection;
 use Laravel\Ai\Embeddings;
 use Laravel\Ai\Exceptions\AiException;
 
-#[Signature('assistant:ask-with-memory {question : The question or statement to send to the assistant}')]
+#[Signature('assistant:ask-with-memory {question : The question or statement to send to the assistant} {--user= : Email address of the user this question and any remembered fact belong to}')]
 #[Description('Send a one-off message to the assistant, grounded in facts remembered from previous sessions')]
 class AskWithMemoryCommand extends Command
 {
     use DisclosesAiInteraction;
     use ReadsStructuredResponse;
+    use ResolvesUserOption;
 
     /**
      * How many of the most relevant remembered facts to retrieve and hand
@@ -48,16 +51,25 @@ class AskWithMemoryCommand extends Command
      * similarity mechanism already built for the user's transactions
      * (see App\Support\VectorStore), applied here to a distinct data
      * source. Only afterward does this session decide whether it, in
-     * turn, has left a fact worth remembering for the next one.
+     * turn, has left a fact worth remembering for the next one. Both
+     * directions, recalling and remembering, are scoped to the resolved
+     * user: a fact stated by one user is never recalled while answering
+     * another's question.
      */
     public function handle(): int
     {
         $this->discloseAiInteraction();
 
+        $user = $this->resolveUserOption();
+
+        if ($user === false) {
+            return Command::INVALID;
+        }
+
         $question = $this->argument('question');
 
         try {
-            $prompt = $this->augmentedPrompt($question);
+            $prompt = $this->augmentedPrompt($question, $user);
         } catch (AiException|HttpClientException) {
             $this->components->error('Could not reach the embeddings provider right now. Please try again in a moment.');
 
@@ -68,21 +80,22 @@ class AskWithMemoryCommand extends Command
 
         $this->line($response->text);
 
-        $this->rememberAnyFact($question);
+        $this->rememberAnyFact($question, $user);
 
         return Command::SUCCESS;
     }
 
     /**
      * Fold the facts most relevant to the question into the prompt sent to
-     * the assistant. A question is sent unchanged if nothing has been
-     * remembered yet, or if nothing remembered clears the relevance floor:
-     * in both cases there is nothing to ground the answer in beyond the
-     * question itself.
+     * the assistant, restricted to facts owned by the given user: a fact
+     * remembered from someone else's session never becomes a candidate.
+     * A question is sent unchanged if nothing has been remembered yet, or
+     * if nothing remembered clears the relevance floor: in both cases
+     * there is nothing to ground the answer in beyond the question itself.
      */
-    private function augmentedPrompt(string $question): string
+    private function augmentedPrompt(string $question, User $user): string
     {
-        $remembered = MemoryFact::all();
+        $remembered = MemoryFact::query()->ownedBy($user)->get();
 
         if ($remembered->isEmpty()) {
             return $question;
@@ -117,7 +130,7 @@ class AskWithMemoryCommand extends Command
      * worse outcome than one that fails loudly after already delivering
      * an answer.
      */
-    private function rememberAnyFact(string $question): void
+    private function rememberAnyFact(string $question, User $user): void
     {
         try {
             $extracted = (new FactExtractor)->prompt($question);
@@ -129,7 +142,7 @@ class AskWithMemoryCommand extends Command
 
             $embedding = Embeddings::for([$fact])->generate()->first();
 
-            MemoryFact::create(['content' => $fact, 'embedding' => $embedding]);
+            MemoryFact::create(['user_id' => $user->id, 'content' => $fact, 'embedding' => $embedding]);
         } catch (AiException|HttpClientException) {
             $this->components->warn('Could not save this session to memory. Future sessions will not recall it.');
         }

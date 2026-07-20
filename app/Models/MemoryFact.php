@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -22,4 +23,14 @@ class MemoryFact extends Model
     protected $casts = [
         'embedding' => 'array',
     ];
+
+    /**
+     * Restrict a query to facts owned by the given user. Same reasoning
+     * as Transaction::scopeOwnedBy: a fact recalled without this scope
+     * would be recalled for every user, not just the one who stated it.
+     */
+    public function scopeOwnedBy(Builder $query, User $user): Builder
+    {
+        return $query->where('user_id', $user->id);
+    }
 }

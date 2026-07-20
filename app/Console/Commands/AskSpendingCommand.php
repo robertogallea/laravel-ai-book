@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Ai\Agents\FinanceAssistant;
 use App\Console\Commands\Concerns\DisclosesAiInteraction;
+use App\Console\Commands\Concerns\ResolvesUserOption;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Support\CallTrace;
@@ -22,6 +23,7 @@ use Laravel\Ai\Exceptions\AiException;
 class AskSpendingCommand extends Command
 {
     use DisclosesAiInteraction;
+    use ResolvesUserOption;
 
     /**
      * How many of the most relevant transactions to retrieve and hand to
@@ -66,29 +68,24 @@ class AskSpendingCommand extends Command
      * takes the resolved user as an explicit argument: none of them fall
      * back to answering for whichever user happens to be current if none
      * is given, because none of them accept being called without one.
+     *
+     * The user lookup itself is deferred past the cache check on purpose:
+     * a repeated question answered from cache never needs the User model
+     * at all, only the email that already identified it, so it should not
+     * pay for a database round-trip a cache hit has no use for.
      */
     public function handle(): int
     {
         $this->discloseAiInteraction();
 
         $question = $this->argument('question');
-        $email = $this->option('user');
+        $email = $this->requiredUserEmail();
 
-        if ($email === null) {
-            $this->components->error('The --user option is required: no question can be answered without knowing whose transactions to consult.');
-
+        if ($email === false) {
             return Command::INVALID;
         }
 
-        $user = User::where('email', $email)->first();
-
-        if ($user === null) {
-            $this->components->error("No user found with email \"{$email}\".");
-
-            return Command::INVALID;
-        }
-
-        $cacheKey = $this->cacheKey($question, $user);
+        $cacheKey = $this->cacheKey($question, $email);
 
         $cached = Cache::get($cacheKey);
 
@@ -96,6 +93,12 @@ class AskSpendingCommand extends Command
             $this->line($cached);
 
             return Command::SUCCESS;
+        }
+
+        $user = $this->findUserByEmail($email);
+
+        if ($user === false) {
+            return Command::INVALID;
         }
 
         try {
@@ -126,14 +129,16 @@ class AskSpendingCommand extends Command
      * A cache key scoped to the question itself, normalized so that trivial
      * differences in case or surrounding whitespace still hit the same
      * entry, to the current spending-answers cache version, and to the
-     * user asking: two different users asking the same question in the
+     * email asking: two different users asking the same question in the
      * same words must never be answered from each other's cached entry.
+     * Built from the email alone, not a resolved User, precisely so a
+     * cache hit never has to resolve one.
      */
-    private function cacheKey(string $question, User $user): string
+    private function cacheKey(string $question, string $email): string
     {
         $version = Cache::get(Transaction::SPENDING_ANSWERS_CACHE_VERSION_KEY, 0);
 
-        return sprintf('spending_answer:%d:%d:%s', $version, $user->id, md5(strtolower(trim($question))));
+        return sprintf('spending_answer:%d:%s:%s', $version, md5(strtolower(trim($email))), md5(strtolower(trim($question))));
     }
 
     /**

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Ai\Agents\FactExtractor;
 use App\Ai\Agents\FinanceAssistant;
 use App\Models\MemoryFact;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Laravel\Ai\Embeddings;
@@ -13,6 +14,15 @@ use Tests\TestCase;
 class AskWithMemoryCommandTest extends TestCase
 {
     use RefreshDatabase;
+
+    private User $user;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->user = User::factory()->create(['email' => 'user@example.com']);
+    }
 
     public function test_a_question_gets_only_the_bare_question_when_nothing_is_remembered_yet(): void
     {
@@ -26,6 +36,7 @@ class AskWithMemoryCommandTest extends TestCase
 
         $this->artisan('assistant:ask-with-memory', [
             'question' => 'What is my savings goal?',
+            '--user' => $this->user->email,
         ])
             ->expectsOutputToContain("I don't have any information about a savings goal")
             ->assertExitCode(0);
@@ -54,11 +65,13 @@ class AskWithMemoryCommandTest extends TestCase
 
         $this->artisan('assistant:ask-with-memory', [
             'question' => 'I want to save 200 dollars a month for vacation.',
+            '--user' => $this->user->email,
         ])->assertExitCode(0);
 
         $this->assertSame(1, MemoryFact::count());
 
         $fact = MemoryFact::sole();
+        $this->assertSame($this->user->id, $fact->user_id);
         $this->assertSame('The user wants to save 200 dollars a month for vacation.', $fact->content);
         // Round-tripped through the json cast: PHP decodes 1.0 back as
         // an int once it has no fractional part, so this compares
@@ -77,6 +90,7 @@ class AskWithMemoryCommandTest extends TestCase
         // computed at that time, exactly like MemoryFact::create() does
         // in AskWithMemoryCommand::rememberAnyFact().
         MemoryFact::factory()->create([
+            'user_id' => $this->user->id,
             'content' => 'The user wants to save 200 dollars a month for vacation.',
             'embedding' => [1.0, 0.0],
         ]);
@@ -97,6 +111,7 @@ class AskWithMemoryCommandTest extends TestCase
 
         $this->artisan('assistant:ask-with-memory', [
             'question' => 'What is my savings goal?',
+            '--user' => $this->user->email,
         ])
             ->expectsOutputToContain('You are saving toward 200 dollars a month for vacation.')
             ->assertExitCode(0);
@@ -111,9 +126,47 @@ class AskWithMemoryCommandTest extends TestCase
         );
     }
 
+    public function test_a_fact_remembered_by_another_user_is_never_recalled(): void
+    {
+        $otherUser = User::factory()->create(['email' => 'other@example.com']);
+
+        MemoryFact::factory()->create([
+            'user_id' => $otherUser->id,
+            'content' => 'The user wants to save 200 dollars a month for vacation.',
+            'embedding' => [1.0, 0.0],
+        ]);
+
+        Embeddings::fake([
+            [[1.0, 0.0]],
+        ]);
+
+        FinanceAssistant::fake([
+            "I don't have any information about a savings goal for you.",
+        ]);
+
+        FactExtractor::fake([
+            ['fact' => null],
+        ]);
+
+        $this->artisan('assistant:ask-with-memory', [
+            'question' => 'What is my savings goal?',
+            '--user' => $this->user->email,
+        ])->assertExitCode(0);
+
+        // Nothing is remembered under this user's own ownership, so the
+        // question reaches the assistant unchanged: the other user's fact
+        // never enters consideration.
+        FinanceAssistant::assertPrompted(
+            fn ($prompt) => $prompt->prompt === 'What is my savings goal?'
+        );
+
+        Embeddings::assertNothingGenerated();
+    }
+
     public function test_an_unrelated_remembered_fact_does_not_clear_the_relevance_floor(): void
     {
         MemoryFact::factory()->create([
+            'user_id' => $this->user->id,
             'content' => 'The user prefers vegetarian restaurant recommendations.',
             'embedding' => [0.0, 1.0],
         ]);
@@ -134,6 +187,7 @@ class AskWithMemoryCommandTest extends TestCase
 
         $this->artisan('assistant:ask-with-memory', [
             'question' => 'What is my savings goal?',
+            '--user' => $this->user->email,
         ])->assertExitCode(0);
 
         FinanceAssistant::assertPrompted(
@@ -143,7 +197,7 @@ class AskWithMemoryCommandTest extends TestCase
 
     public function test_a_provider_failure_while_retrieving_context_is_reported_gracefully(): void
     {
-        MemoryFact::factory()->create(['embedding' => [1.0, 0.0]]);
+        MemoryFact::factory()->create(['user_id' => $this->user->id, 'embedding' => [1.0, 0.0]]);
 
         Embeddings::fake(fn () => throw new ConnectionException('cURL error 28: Connection timed out.'));
 
@@ -151,6 +205,7 @@ class AskWithMemoryCommandTest extends TestCase
 
         $this->artisan('assistant:ask-with-memory', [
             'question' => 'What is my savings goal?',
+            '--user' => $this->user->email,
         ])
             ->expectsOutputToContain('Could not reach the embeddings provider')
             ->assertExitCode(1);
@@ -168,11 +223,25 @@ class AskWithMemoryCommandTest extends TestCase
 
         $this->artisan('assistant:ask-with-memory', [
             'question' => 'I want to save 200 dollars a month for vacation.',
+            '--user' => $this->user->email,
         ])
             ->expectsOutputToContain("Got it, I'll keep that in mind.")
             ->expectsOutputToContain('Could not save this session to memory')
             ->assertExitCode(0);
 
         $this->assertSame(0, MemoryFact::count());
+    }
+
+    public function test_the_user_option_is_required(): void
+    {
+        FinanceAssistant::fake();
+
+        $this->artisan('assistant:ask-with-memory', [
+            'question' => 'What is my savings goal?',
+        ])
+            ->expectsOutputToContain('The --user option is required')
+            ->assertExitCode(2);
+
+        FinanceAssistant::assertNeverPrompted();
     }
 }

@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Ai\Agents\FinanceAssistant;
 use App\Models\Transaction;
+use App\Models\User;
 use App\Support\CallTrace;
 use App\Support\VectorStore;
 use Illuminate\Console\Attributes\Description;
@@ -15,7 +16,7 @@ use Illuminate\Support\Facades\Cache;
 use Laravel\Ai\Embeddings;
 use Laravel\Ai\Exceptions\AiException;
 
-#[Signature('assistant:ask-spending {question : A question about the user\'s spending history}')]
+#[Signature('assistant:ask-spending {question : A question about the user\'s spending history} {--user= : Email address of the user asking this question}')]
 #[Description('Ask the assistant a question about the user\'s spending history, grounded in the user\'s actual transactions')]
 class AskSpendingCommand extends Command
 {
@@ -62,6 +63,17 @@ class AskSpendingCommand extends Command
     public function handle(): int
     {
         $question = $this->argument('question');
+
+        // Resolved only to confirm the given email address is on record:
+        // nothing below is scoped to this specific user, the same
+        // retrieval every question has always gone through regardless of
+        // who is asking.
+        if (($email = $this->option('user')) !== null && User::where('email', $email)->doesntExist()) {
+            $this->components->error("No user found with email \"{$email}\".");
+
+            return Command::INVALID;
+        }
+
         $cacheKey = $this->cacheKey($question);
 
         $cached = Cache::get($cacheKey);

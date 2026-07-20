@@ -3,17 +3,21 @@
 namespace App\Console\Commands;
 
 use App\Ai\Agents\PurchaseAdvisor;
+use App\Console\Commands\Concerns\DisclosesAiInteraction;
 use App\Console\Commands\Concerns\RequiresApproval;
+use App\Console\Commands\Concerns\ResolvesUserOption;
 use App\Support\ProposedAction;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
-#[Signature('assistant:assess-purchase {amount : Cost of the purchase being considered} {description : Short description of what is being purchased}')]
+#[Signature('assistant:assess-purchase {amount : Cost of the purchase being considered} {description : Short description of what is being purchased} {--user= : Email address of the user this purchase is being assessed for}')]
 #[Description('Ask the assistant whether a purchase is affordable, grounded in the real account data')]
 class AssessPurchaseCommand extends Command
 {
+    use DisclosesAiInteraction;
     use RequiresApproval;
+    use ResolvesUserOption;
 
     /**
      * Execute the console command.
@@ -29,6 +33,8 @@ class AssessPurchaseCommand extends Command
      */
     public function handle(): int
     {
+        $this->discloseAiInteraction();
+
         $rawAmount = $this->argument('amount');
         $description = $this->argument('description');
 
@@ -38,11 +44,17 @@ class AssessPurchaseCommand extends Command
             return Command::INVALID;
         }
 
+        $user = $this->resolveUserOption();
+
+        if ($user === false) {
+            return Command::INVALID;
+        }
+
         $amount = (float) $rawAmount;
 
         $goal = sprintf('Can the user afford to spend %.2f dollars on %s?', $amount, $description);
 
-        $response = (new PurchaseAdvisor)->prompt($goal);
+        $response = (new PurchaseAdvisor($user))->prompt($goal);
 
         $affordable = $response->structured['affordable'] ?? null;
         $reasoning = $response->structured['reasoning'] ?? null;

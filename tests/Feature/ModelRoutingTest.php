@@ -4,11 +4,24 @@ namespace Tests\Feature;
 
 use App\Ai\Agents\ExpenseExtractor;
 use App\Ai\Agents\PurchaseAdvisor;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Ai\Ai;
 use Tests\TestCase;
 
 class ModelRoutingTest extends TestCase
 {
+    use RefreshDatabase;
+
+    private User $user;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->user = User::factory()->create();
+    }
+
     public function test_categorization_is_routed_to_the_cheapest_available_model(): void
     {
         ExpenseExtractor::fake([
@@ -39,9 +52,10 @@ class ModelRoutingTest extends TestCase
         $this->artisan('assistant:assess-purchase', [
             'amount' => '600',
             'description' => 'a new laptop',
+            '--user' => $this->user->email,
         ])->assertExitCode(0);
 
-        $smartest = Ai::textProviderFor(new PurchaseAdvisor, null)->smartestTextModel();
+        $smartest = Ai::textProviderFor(new PurchaseAdvisor($this->user), null)->smartestTextModel();
 
         PurchaseAdvisor::assertPrompted(fn ($prompt) => $prompt->model === $smartest);
     }
@@ -63,6 +77,7 @@ class ModelRoutingTest extends TestCase
         $this->artisan('assistant:assess-purchase', [
             'amount' => '600',
             'description' => 'a new laptop',
+            '--user' => $this->user->email,
         ])->assertExitCode(0);
 
         // Neither call site chose a model itself: the routing lives once,

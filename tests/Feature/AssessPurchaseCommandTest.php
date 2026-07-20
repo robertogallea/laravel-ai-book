@@ -3,13 +3,26 @@
 namespace Tests\Feature;
 
 use App\Ai\Agents\PurchaseAdvisor;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
 use Mockery;
 use Tests\TestCase;
 
 class AssessPurchaseCommandTest extends TestCase
 {
+    use RefreshDatabase;
+
     private const GOAL = 'Can the user afford to spend 600.00 dollars on a new laptop?';
+
+    private User $user;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->user = User::factory()->create(['email' => 'user@example.com']);
+    }
 
     public function test_an_affordable_purchase_is_reported_with_no_suggested_action(): void
     {
@@ -24,6 +37,7 @@ class AssessPurchaseCommandTest extends TestCase
         $this->artisan('assistant:assess-purchase', [
             'amount' => '600',
             'description' => 'a new laptop',
+            '--user' => $this->user->email,
         ])
             ->expectsOutputToContain('Affordable: yes.')
             ->expectsOutputToContain('comfortably covers this purchase')
@@ -54,6 +68,7 @@ class AssessPurchaseCommandTest extends TestCase
         $this->artisan('assistant:assess-purchase', [
             'amount' => '600',
             'description' => 'a new laptop',
+            '--user' => $this->user->email,
         ])
             ->expectsOutputToContain('Affordable: yes.')
             ->doesntExpectOutputToContain('Proposed action')
@@ -80,6 +95,7 @@ class AssessPurchaseCommandTest extends TestCase
         $this->artisan('assistant:assess-purchase', [
             'amount' => '600',
             'description' => 'a new laptop',
+            '--user' => $this->user->email,
         ])
             ->expectsOutputToContain('Affordable: no.')
             ->expectsOutputToContain('exceed the electronics budget')
@@ -119,6 +135,7 @@ class AssessPurchaseCommandTest extends TestCase
         $this->artisan('assistant:assess-purchase', [
             'amount' => '600',
             'description' => 'a new laptop',
+            '--user' => $this->user->email,
         ])
             ->expectsConfirmation('Approve this action?', 'no')
             ->expectsOutputToContain('Action rejected. Nothing was executed.')
@@ -144,6 +161,7 @@ class AssessPurchaseCommandTest extends TestCase
         $this->artisan('assistant:assess-purchase', [
             'amount' => '600',
             'description' => 'a new laptop',
+            '--user' => $this->user->email,
         ])
             ->expectsOutputToContain('The assistant returned an incomplete assessment')
             ->assertExitCode(1);
@@ -164,6 +182,7 @@ class AssessPurchaseCommandTest extends TestCase
         $this->artisan('assistant:assess-purchase', [
             'amount' => '600',
             'description' => 'a new laptop',
+            '--user' => $this->user->email,
         ])
             ->expectsOutputToContain('The assistant returned an incomplete assessment')
             ->assertExitCode(1);
@@ -176,6 +195,7 @@ class AssessPurchaseCommandTest extends TestCase
         $this->artisan('assistant:assess-purchase', [
             'amount' => 'abc',
             'description' => 'a new laptop',
+            '--user' => $this->user->email,
         ])
             ->expectsOutputToContain('Amount must be a positive number, got "abc"')
             ->assertExitCode(2);
@@ -190,8 +210,23 @@ class AssessPurchaseCommandTest extends TestCase
         $this->artisan('assistant:assess-purchase', [
             'amount' => '0',
             'description' => 'a new laptop',
+            '--user' => $this->user->email,
         ])
             ->expectsOutputToContain('Amount must be a positive number, got "0"')
+            ->assertExitCode(2);
+
+        PurchaseAdvisor::assertNeverPrompted();
+    }
+
+    public function test_the_user_option_is_required(): void
+    {
+        PurchaseAdvisor::fake();
+
+        $this->artisan('assistant:assess-purchase', [
+            'amount' => '600',
+            'description' => 'a new laptop',
+        ])
+            ->expectsOutputToContain('The --user option is required')
             ->assertExitCode(2);
 
         PurchaseAdvisor::assertNeverPrompted();

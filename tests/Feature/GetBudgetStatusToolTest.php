@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Ai\Tools\GetBudgetStatusTool;
 use App\Models\Transaction;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Ai\Tools\Request;
 use Tests\TestCase;
@@ -16,11 +17,13 @@ class GetBudgetStatusToolTest extends TestCase
     {
         config(['finance.budgets' => ['groceries' => 400.00, 'entertainment' => 100.00]]);
 
-        Transaction::factory()->create(['category' => 'groceries', 'amount' => 64.35, 'occurred_at' => now()]);
-        Transaction::factory()->create(['category' => 'groceries', 'amount' => 22.10, 'occurred_at' => now()]);
-        Transaction::factory()->create(['category' => 'entertainment', 'amount' => 300.00, 'occurred_at' => now()]);
+        $user = User::factory()->create();
 
-        $result = (string) (new GetBudgetStatusTool)->handle(new Request(['category' => 'groceries']));
+        Transaction::factory()->create(['user_id' => $user->id, 'category' => 'groceries', 'amount' => 64.35, 'occurred_at' => now()]);
+        Transaction::factory()->create(['user_id' => $user->id, 'category' => 'groceries', 'amount' => 22.10, 'occurred_at' => now()]);
+        Transaction::factory()->create(['user_id' => $user->id, 'category' => 'entertainment', 'amount' => 300.00, 'occurred_at' => now()]);
+
+        $result = (string) (new GetBudgetStatusTool($user))->handle(new Request(['category' => 'groceries']));
 
         $this->assertSame(
             'Category "groceries": 86.45 dollars spent so far this month, out of a 400.00 dollars monthly budget.',
@@ -32,11 +35,13 @@ class GetBudgetStatusToolTest extends TestCase
     {
         config(['finance.budgets' => ['groceries' => 400.00]]);
 
-        Transaction::factory()->create(['category' => 'groceries', 'amount' => 64.35, 'occurred_at' => now()]);
-        Transaction::factory()->create(['category' => 'groceries', 'amount' => 999.00, 'occurred_at' => now()->subMonthNoOverflow()]);
-        Transaction::factory()->create(['category' => 'groceries', 'amount' => 999.00, 'occurred_at' => now()->subYearNoOverflow()]);
+        $user = User::factory()->create();
 
-        $result = (string) (new GetBudgetStatusTool)->handle(new Request(['category' => 'groceries']));
+        Transaction::factory()->create(['user_id' => $user->id, 'category' => 'groceries', 'amount' => 64.35, 'occurred_at' => now()]);
+        Transaction::factory()->create(['user_id' => $user->id, 'category' => 'groceries', 'amount' => 999.00, 'occurred_at' => now()->subMonthNoOverflow()]);
+        Transaction::factory()->create(['user_id' => $user->id, 'category' => 'groceries', 'amount' => 999.00, 'occurred_at' => now()->subYearNoOverflow()]);
+
+        $result = (string) (new GetBudgetStatusTool($user))->handle(new Request(['category' => 'groceries']));
 
         $this->assertSame(
             'Category "groceries": 64.35 dollars spent so far this month, out of a 400.00 dollars monthly budget.',
@@ -48,8 +53,28 @@ class GetBudgetStatusToolTest extends TestCase
     {
         config(['finance.budgets' => ['groceries' => 400.00]]);
 
-        $result = (string) (new GetBudgetStatusTool)->handle(new Request(['category' => 'other']));
+        $user = User::factory()->create();
+
+        $result = (string) (new GetBudgetStatusTool($user))->handle(new Request(['category' => 'other']));
 
         $this->assertSame('No budget is set for the "other" category.', $result);
+    }
+
+    public function test_another_users_spending_in_the_same_category_is_not_counted(): void
+    {
+        config(['finance.budgets' => ['groceries' => 400.00]]);
+
+        $user = User::factory()->create();
+        $otherUser = User::factory()->create();
+
+        Transaction::factory()->create(['user_id' => $user->id, 'category' => 'groceries', 'amount' => 64.35, 'occurred_at' => now()]);
+        Transaction::factory()->create(['user_id' => $otherUser->id, 'category' => 'groceries', 'amount' => 300.00, 'occurred_at' => now()]);
+
+        $result = (string) (new GetBudgetStatusTool($user))->handle(new Request(['category' => 'groceries']));
+
+        $this->assertSame(
+            'Category "groceries": 64.35 dollars spent so far this month, out of a 400.00 dollars monthly budget.',
+            $result,
+        );
     }
 }

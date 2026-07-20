@@ -4,6 +4,7 @@ namespace App\Ai\Tools;
 
 use App\Ai\Agents\ExpenseExtractor;
 use App\Models\Transaction;
+use App\Models\User;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
@@ -11,6 +12,8 @@ use Stringable;
 
 class GetBudgetStatusTool implements Tool
 {
+    public function __construct(private readonly User $user) {}
+
     public function description(): Stringable|string
     {
         return 'Get the monthly budget limit and amount already spent so far for a specific spending category.';
@@ -25,7 +28,9 @@ class GetBudgetStatusTool implements Tool
             return "No budget is set for the \"{$category}\" category.";
         }
 
-        $spent = Transaction::where('category', $category)
+        $spent = Transaction::query()
+            ->ownedBy($this->user)
+            ->where('category', $category)
             ->whereYear('occurred_at', now()->year)
             ->whereMonth('occurred_at', now()->month)
             ->sum('amount');

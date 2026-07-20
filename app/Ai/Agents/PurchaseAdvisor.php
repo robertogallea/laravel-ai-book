@@ -5,6 +5,7 @@ namespace App\Ai\Agents;
 use App\Ai\Tools\GetAccountBalanceTool;
 use App\Ai\Tools\GetBudgetStatusTool;
 use App\Ai\Tools\GetRecurringExpensesTool;
+use App\Models\User;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
 use Laravel\Ai\Attributes\MaxSteps;
@@ -41,6 +42,8 @@ class PurchaseAdvisor implements Agent, HasStructuredOutput, HasTools
 {
     use Promptable;
 
+    public function __construct(private readonly User $user) {}
+
     /**
      * Get the instructions that the agent should follow.
      */
@@ -66,14 +69,19 @@ class PurchaseAdvisor implements Agent, HasStructuredOutput, HasTools
     /**
      * Get the tools available to the agent.
      *
+     * Only the two tools that read this user's own transaction data need
+     * that user at construction time; GetRecurringExpensesTool reads
+     * configured, shared subscription data, not a specific user's
+     * records, so it takes none.
+     *
      * @return Tool[]
      */
     public function tools(): iterable
     {
         return [
-            new GetAccountBalanceTool,
+            new GetAccountBalanceTool($this->user),
             new GetRecurringExpensesTool,
-            new GetBudgetStatusTool,
+            new GetBudgetStatusTool($this->user),
         ];
     }
 

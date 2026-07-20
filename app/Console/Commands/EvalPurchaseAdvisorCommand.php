@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Ai\Agents\PurchaseAdvisor;
 use App\Console\Commands\Concerns\ReadsStructuredResponse;
 use App\Console\Commands\Concerns\RunsEvalSet;
+use App\Models\User;
 use App\Support\Eval\EvalCase;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -50,10 +51,16 @@ class EvalPurchaseAdvisorCommand extends Command
 
     public function handle(): int
     {
+        // A case here evaluates the agent's reasoning against a synthetic
+        // scenario, not a real account: an unpersisted placeholder user,
+        // never written to the database, is all PurchaseAdvisor's
+        // constructor needs to run.
+        $evalUser = new User;
+
         return $this->runEvalSet(
             'Purchase-advisor',
             $this->cases(),
-            fn (string $input) => (new PurchaseAdvisor)->prompt($input)->structured,
+            fn (string $input) => (new PurchaseAdvisor($evalUser))->prompt($input)->structured,
         );
     }
 }

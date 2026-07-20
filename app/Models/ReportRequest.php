@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * A request for a given month's report from someone who does not need it
@@ -28,4 +29,14 @@ class ReportRequest extends Model
     protected $table = 'report_requests';
 
     protected $guarded = [];
+
+    /**
+     * The user this request's report is for: batching groups pending
+     * requests by month and user together, so this relationship is what
+     * ProcessReportQueueCommand reads to know whose report each group is.
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 }

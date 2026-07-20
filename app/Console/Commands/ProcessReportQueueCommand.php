@@ -40,19 +40,20 @@ class ProcessReportQueueCommand extends Command
     }
 
     /**
-     * However many times a given month's report was requested since the
-     * last run, pending or not, every one of those requests describes the
-     * exact same report: the pipeline behind it only needs to run once
-     * per distinct month, not once per request. Only the requests
-     * snapshotted here at the start are ever marked "processed", never a
-     * fresh query against "status = pending": a request that arrives
-     * while this run is still in progress is left for the next run
-     * instead of being swept in without ever having been covered by this
-     * one.
+     * However many times a given month's report was requested by a given
+     * user since the last run, pending or not, every one of those
+     * requests describes the exact same report: the pipeline behind it
+     * only needs to run once per distinct (month, user) pair, not once
+     * per request, and never once per month blended across whichever
+     * users happened to ask for it. Only the requests snapshotted here at
+     * the start are ever marked "processed", never a fresh query against
+     * "status = pending": a request that arrives while this run is still
+     * in progress is left for the next run instead of being swept in
+     * without ever having been covered by this one.
      */
     private function processPendingRequests(): int
     {
-        $pending = ReportRequest::where('status', ReportRequest::STATUS_PENDING)->get();
+        $pending = ReportRequest::where('status', ReportRequest::STATUS_PENDING)->with('user')->get();
 
         if ($pending->isEmpty()) {
             $this->components->info('No report requests pending.');
@@ -62,8 +63,14 @@ class ProcessReportQueueCommand extends Command
 
         $anyFailed = false;
 
-        foreach ($pending->groupBy('month') as $month => $requestsForMonth) {
-            $exitCode = $this->call(GenerateMonthlyReportCommand::class, ['month' => $month]);
+        foreach ($pending->groupBy(fn (ReportRequest $request) => $request->month.'|'.$request->user_id) as $requestsForMonthAndUser) {
+            $month = $requestsForMonthAndUser->first()->month;
+            $user = $requestsForMonthAndUser->first()->user;
+
+            $exitCode = $this->call(GenerateMonthlyReportCommand::class, [
+                'month' => $month,
+                '--user' => $user->email,
+            ]);
 
             if ($exitCode !== Command::SUCCESS) {
                 $anyFailed = true;
@@ -71,12 +78,13 @@ class ProcessReportQueueCommand extends Command
                 continue;
             }
 
-            ReportRequest::whereIn('id', $requestsForMonth->pluck('id'))->update(['status' => ReportRequest::STATUS_PROCESSED]);
+            ReportRequest::whereIn('id', $requestsForMonthAndUser->pluck('id'))->update(['status' => ReportRequest::STATUS_PROCESSED]);
 
             $this->components->info(sprintf(
-                'Processed %d pending report request(s) for %s in a single batched run.',
-                $requestsForMonth->count(),
+                'Processed %d pending report request(s) for %s for %s in a single batched run.',
+                $requestsForMonthAndUser->count(),
                 $month,
+                $user->email,
             ));
         }
 

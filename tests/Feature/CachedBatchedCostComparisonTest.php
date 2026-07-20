@@ -67,7 +67,7 @@ class CachedBatchedCostComparisonTest extends TestCase
         // Three separate, non-urgent requests for the exact same month's
         // report, queued instead of generated immediately.
         for ($i = 0; $i < 3; $i++) {
-            $this->artisan('assistant:request-monthly-report')->assertExitCode(0);
+            $this->artisan('assistant:request-monthly-report', ['--user' => $user->email])->assertExitCode(0);
         }
 
         $this->assertSame(3, ReportRequest::where('status', 'pending')->count());
@@ -75,8 +75,9 @@ class CachedBatchedCostComparisonTest extends TestCase
         // One scheduled batch answers all three requests with a single run.
         $this->artisan('assistant:process-report-queue')
             ->expectsOutputToContain(sprintf(
-                'Processed 3 pending report request(s) for %s in a single batched run.',
+                'Processed 3 pending report request(s) for %s for %s in a single batched run.',
                 now()->format('Y-m'),
+                $user->email,
             ))
             ->assertExitCode(0);
 

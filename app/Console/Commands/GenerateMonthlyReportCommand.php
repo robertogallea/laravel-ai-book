@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Ai\Agents\MonthlyReportSummarizer;
 use App\Ai\Agents\OverspendingAdvisor;
 use App\Console\Commands\Concerns\ReadsStructuredResponse;
+use App\Console\Commands\Concerns\ResolvesUserOption;
 use App\Models\Transaction;
 use App\Support\CallTrace;
 use Illuminate\Console\Attributes\Description;
@@ -12,11 +13,12 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 
-#[Signature('assistant:generate-monthly-report {month? : Target month in Y-m format (e.g. 2026-07), defaults to the current month}')]
+#[Signature('assistant:generate-monthly-report {month? : Target month in Y-m format (e.g. 2026-07), defaults to the current month} {--user= : Email address of the user this report is for}')]
 #[Description('Generate a spending report for the given month, or the current one')]
 class GenerateMonthlyReportCommand extends Command
 {
     use ReadsStructuredResponse;
+    use ResolvesUserOption;
 
     /**
      * How far over its budget a category has to be, as a fraction of the
@@ -39,6 +41,12 @@ class GenerateMonthlyReportCommand extends Command
      */
     public function handle(): int
     {
+        $user = $this->resolveUserOption();
+
+        if ($user === false) {
+            return Command::INVALID;
+        }
+
         // The month argument exists for ProcessReportQueueCommand, which
         // must report on whatever month a queued request was actually
         // made for, not whatever month happens to be current by the time
@@ -52,8 +60,12 @@ class GenerateMonthlyReportCommand extends Command
         // application with an async runtime could dispatch them together,
         // here they simply run one after the other, a single console
         // command has no need for that complexity to make the same point
-        // about coordination.
-        $transactions = Transaction::whereYear('occurred_at', $month->year)
+        // about coordination. Restricted to this user's own transactions,
+        // the same boundary AskSpendingCommand already enforces on its
+        // own retrieval: a report is never a mix of two users' spending.
+        $transactions = Transaction::query()
+            ->ownedBy($user)
+            ->whereYear('occurred_at', $month->year)
             ->whereMonth('occurred_at', $month->month)
             ->get();
 
@@ -89,10 +101,12 @@ class GenerateMonthlyReportCommand extends Command
         $summaryResponse = (new MonthlyReportSummarizer)->prompt($summaryPrompt);
 
         // Traced the same way as every other model call in this
-        // application since the chapter on resilience: this is what makes
-        // the cost of running this pipeline, once or a thousand times,
-        // something to measure instead of something to guess.
-        CallTrace::record($summaryPrompt, $summaryResponse);
+        // application since the chapter on resilience, now also
+        // attributed to the user this report was generated for: this is
+        // what makes the cost of running this pipeline, once or a
+        // thousand times, something to measure instead of something to
+        // guess, per user rather than blended across all of them.
+        CallTrace::record($summaryPrompt, $summaryResponse, user: $user);
 
         $summary = $this->stringField($summaryResponse->structured, 'summary');
 
@@ -120,7 +134,7 @@ class GenerateMonthlyReportCommand extends Command
 
         $recommendationsResponse = (new OverspendingAdvisor)->prompt($overBudgetPrompt);
 
-        CallTrace::record($overBudgetPrompt, $recommendationsResponse);
+        CallTrace::record($overBudgetPrompt, $recommendationsResponse, user: $user);
 
         $recommendations = $this->stringField($recommendationsResponse->structured, 'recommendations');
 

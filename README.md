@@ -505,6 +505,45 @@ Tags for this chapter:
   git diff ch11-unvalidated-prompt-change ch11-eval-gated-prompt-changes
   ```
 
+## Chapter 11 - growing the eval set from real feedback instead of leaving it static
+
+```bash
+php artisan assistant:submit-feedback "Refund adjustment for an earlier restaurant charge at Luigi's Trattoria" other negative
+php artisan assistant:review-feedback
+php artisan assistant:eval-categorization
+```
+
+The categorization eval set built in the previous increment is a fixed array of five cases,
+written once and never revisited. A refund description the assistant categorizes as "other"
+instead of "restaurants" is exactly the kind of real mistake that set has no way to know about:
+running `assistant:eval-categorization` against it still reports a full 5/5 pass, oblivious to a
+problem sitting right next to it.
+
+The corrected version adds a "thumbs up/down" feedback mechanism on top of that same eval set.
+`assistant:submit-feedback` records a negative rating as a `pending_review` row (a positive one is
+acknowledged but never queued, since a satisfied user confirms nothing an eval case does not
+already cover); `assistant:review-feedback` then shows each pending case to a reviewer, who
+confirms it is a genuine miscategorization and supplies the category the response should have
+returned, mirroring the same never-trust-the-raw-signal-directly principle already built into the
+approval flow in Chapter 5. Only a confirmed row is picked up by `EvalCategorizationCommand`,
+turned into a regular eval case at runtime alongside the five written by hand. Running the eval set
+again after confirming the refund case now reports 5 out of 6 passing, naming the confirmed case
+by its feedback ID: the same mistake that was invisible before this increment is now exactly what
+the eval set is watching for.
+
+Tags for this chapter:
+
+- `ch11-static-eval-dataset` - no new production code; a test shows a real miscategorization
+  passing `assistant:log-expense` unnoticed and the existing eval set staying green regardless,
+  since it has no case for it.
+- `ch11-feedback-gated-eval-growth` - adds `EvalFeedback`, `assistant:submit-feedback`,
+  `assistant:review-feedback`, and wires confirmed feedback into
+  `EvalCategorizationCommand`. Compare the two with:
+
+  ```bash
+  git diff ch11-static-eval-dataset ch11-feedback-gated-eval-growth
+  ```
+
 ## Tag convention
 
 Tags follow `chNN-slug`, where `NN` is the two-digit chapter number. Multiple tags are added per

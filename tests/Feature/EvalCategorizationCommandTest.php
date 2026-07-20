@@ -3,10 +3,13 @@
 namespace Tests\Feature;
 
 use App\Ai\Agents\ExpenseExtractor;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class EvalCategorizationCommandTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_the_full_eval_set_passes_against_a_correctly_behaving_prompt(): void
     {
         ExpenseExtractor::fake([

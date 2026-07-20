@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Ai\Agents\ExpenseExtractor;
+use App\Models\EvalFeedback;
 use App\Support\Eval\EvalCase;
 use App\Support\Eval\EvalRunner;
 use Illuminate\Console\Attributes\Description;
@@ -52,7 +53,30 @@ class EvalCategorizationCommand extends Command
                 input: 'One-time miscellaneous membership renewal fee, not tied to any specific service',
                 criterion: fn (array $s) => ($s['category'] ?? null) === 'other',
             ),
+            ...$this->confirmedFeedbackCases(),
         ];
+    }
+
+    /**
+     * Cases grown from real usage instead of written up front: each one
+     * comes from a user's negative rating that a reviewer has since
+     * confirmed and paired with the category the response should have
+     * returned (see SubmitFeedbackCommand and ReviewFeedbackCommand). A
+     * rating that is still pending, or was dismissed as unfounded, never
+     * reaches this list.
+     *
+     * @return EvalCase[]
+     */
+    private function confirmedFeedbackCases(): array
+    {
+        return EvalFeedback::where('status', 'confirmed')
+            ->get()
+            ->map(fn (EvalFeedback $feedback) => new EvalCase(
+                name: "confirmed_feedback_{$feedback->id}",
+                input: $feedback->input,
+                criterion: fn (array $s) => ($s['category'] ?? null) === $feedback->expected_category,
+            ))
+            ->all();
     }
 
     public function handle(): int

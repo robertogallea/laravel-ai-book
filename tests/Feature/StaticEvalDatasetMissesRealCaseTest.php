@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Ai\Agents\ExpenseExtractor;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
@@ -17,6 +18,8 @@ use Tests\TestCase;
  */
 class StaticEvalDatasetMissesRealCaseTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_a_real_miscategorized_case_from_usage_goes_unnoticed_by_the_static_eval_set(): void
     {
         ExpenseExtractor::fake([

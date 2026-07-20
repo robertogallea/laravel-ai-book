@@ -468,6 +468,43 @@ provider from OpenAI to Anthropic and re-running the entire existing test suite 
 tag for this one, since nothing about the application's functionality changes, only what it is
 configured to talk to.
 
+## Chapter 11 - eval-gated prompt changes: catching a silent regression before release
+
+```bash
+php artisan assistant:eval-categorization
+php artisan assistant:eval-purchase-advisor
+```
+
+No eval set existed yet for either `App\Ai\Agents\ExpenseExtractor` (Chapter 3) or
+`App\Ai\Agents\PurchaseAdvisor` (Chapter 8): the only check in place was `LogExpenseCommand`'s own
+structural validation, which confirms a returned category is one of the known enum values, never
+whether it is the right one. A prompt change that fixes a frequent ambiguous case, pushing the
+model to always prefer a specific category over "other", can just as easily force a rare but
+genuinely miscellaneous expense into the wrong specific category, and nothing before this
+increment would notice.
+
+The corrected version adds a small, reusable eval mechanism (`App\Support\Eval\EvalCase`,
+`App\Support\Eval\EvalRunner`) and two eval sets built on it: one for categorization, where
+correctness reduces to a single equality check against the expected category, and one for the
+planning agent, where each criterion checks several conditions at once (a real explanation, the
+right affordability verdict, the right suggested action), closer to a judge's rubric than to a
+plain equality check, given that agent's multi-step, non-deterministic reasoning loop. Running the
+categorization eval set against the same simulated prompt change described above now reports 4 out
+of 5 cases passing and names the exact case that regressed, instead of letting it through silently.
+
+Tags for this chapter:
+
+- `ch11-unvalidated-prompt-change` - no new production code; a test shows a simulated
+  categorization prompt change fixing one case and regressing another, with nothing catching the
+  regression.
+- `ch11-eval-gated-prompt-changes` - adds `EvalCase`, `EvalRunner`, `assistant:eval-categorization`,
+  and `assistant:eval-purchase-advisor`, and shows the same simulated regression now caught.
+  Compare the two with:
+
+  ```bash
+  git diff ch11-unvalidated-prompt-change ch11-eval-gated-prompt-changes
+  ```
+
 ## Tag convention
 
 Tags follow `chNN-slug`, where `NN` is the two-digit chapter number. Multiple tags are added per

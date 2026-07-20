@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Cache;
 use Laravel\Ai\Embeddings;
 use Laravel\Ai\Exceptions\AiException;
 
-#[Signature('assistant:ask-spending {question : A question about the user\'s spending history} {--user= : Email address of the user asking this question}')]
+#[Signature('assistant:ask-spending {question : A question about the user\'s spending history} {--user= : Email address of the authenticated user asking this question}')]
 #[Description('Ask the assistant a question about the user\'s spending history, grounded in the user\'s actual transactions')]
 class AskSpendingCommand extends Command
 {
@@ -55,26 +55,35 @@ class AskSpendingCommand extends Command
      * history: the transactions most relevant to it are retrieved by
      * semantic similarity and handed to the assistant alongside the
      * question, instead of leaving it to answer from general knowledge
-     * alone. A question asked before, in the same words, with nothing
-     * about the user's transactions having changed since, is answered
-     * from cache instead: no embeddings call, no call to the assistant,
-     * nothing traced, because nothing was actually asked of either.
+     * alone. A question asked before, in the same words, by the same user,
+     * with nothing about that user's transactions having changed since, is
+     * answered from cache instead: no embeddings call, no call to the
+     * assistant, nothing traced, because nothing was actually asked of
+     * either. Every step from here on, retrieval, cache key, and trace,
+     * takes the resolved user as an explicit argument: none of them fall
+     * back to answering for whichever user happens to be current if none
+     * is given, because none of them accept being called without one.
      */
     public function handle(): int
     {
         $question = $this->argument('question');
+        $email = $this->option('user');
 
-        // Resolved only to confirm the given email address is on record:
-        // nothing below is scoped to this specific user, the same
-        // retrieval every question has always gone through regardless of
-        // who is asking.
-        if (($email = $this->option('user')) !== null && User::where('email', $email)->doesntExist()) {
+        if ($email === null) {
+            $this->components->error('The --user option is required: no question can be answered without knowing whose transactions to consult.');
+
+            return Command::INVALID;
+        }
+
+        $user = User::where('email', $email)->first();
+
+        if ($user === null) {
             $this->components->error("No user found with email \"{$email}\".");
 
             return Command::INVALID;
         }
 
-        $cacheKey = $this->cacheKey($question);
+        $cacheKey = $this->cacheKey($question, $user);
 
         $cached = Cache::get($cacheKey);
 
@@ -85,7 +94,7 @@ class AskSpendingCommand extends Command
         }
 
         try {
-            $prompt = $this->augmentedPrompt($question);
+            $prompt = $this->augmentedPrompt($question, $user);
         } catch (AiException|HttpClientException) {
             $this->components->error('Could not reach the embeddings provider right now. Please try again in a moment.');
 
@@ -95,10 +104,11 @@ class AskSpendingCommand extends Command
         $response = (new FinanceAssistant)->prompt($prompt);
 
         // Traced the same way as every other model call in this
-        // application since the chapter on resilience: this is what makes
-        // the cost of answering the same question, once or repeatedly,
-        // something to measure instead of something to guess.
-        CallTrace::record($prompt, $response);
+        // application since the chapter on resilience, now also
+        // attributed to the user this specific answer was grounded in:
+        // this is what makes it possible to reconstruct, after the fact,
+        // not just what was asked but who asked it.
+        CallTrace::record($prompt, $response, user: $user);
 
         Cache::put($cacheKey, $response->text, self::CACHE_TTL_SECONDS);
 
@@ -108,29 +118,32 @@ class AskSpendingCommand extends Command
     }
 
     /**
-     * A cache key scoped to both the question itself, normalized so that
-     * trivial differences in case or surrounding whitespace still hit the
-     * same entry, and the current spending-answers cache version: the
-     * version, not an expiration this method chooses, is what makes a
-     * cached answer unreachable the moment a new transaction could have
-     * changed it (see Transaction::booted()).
+     * A cache key scoped to the question itself, normalized so that trivial
+     * differences in case or surrounding whitespace still hit the same
+     * entry, to the current spending-answers cache version, and to the
+     * user asking: two different users asking the same question in the
+     * same words must never be answered from each other's cached entry.
      */
-    private function cacheKey(string $question): string
+    private function cacheKey(string $question, User $user): string
     {
         $version = Cache::get(Transaction::SPENDING_ANSWERS_CACHE_VERSION_KEY, 0);
 
-        return sprintf('spending_answer:%d:%s', $version, md5(strtolower(trim($question))));
+        return sprintf('spending_answer:%d:%d:%s', $version, $user->id, md5(strtolower(trim($question))));
     }
 
     /**
      * Fold the transactions most relevant to the question into the prompt
-     * sent to the assistant. A question is sent unchanged if nothing has
-     * been indexed yet, or if nothing indexed clears the relevance floor:
-     * in both cases there is nothing real to ground the answer in.
+     * sent to the assistant, restricted from retrieval onward to those
+     * owned by the given user: a transaction belonging to anyone else
+     * never becomes a candidate in the first place, regardless of how
+     * relevant its embedding would otherwise rank. A question is sent
+     * unchanged if this user has nothing indexed yet, or if nothing
+     * indexed clears the relevance floor: in both cases there is nothing
+     * real to ground the answer in.
      */
-    private function augmentedPrompt(string $question): string
+    private function augmentedPrompt(string $question, User $user): string
     {
-        $indexed = Transaction::query()->whereNotNull('embedding')->get();
+        $indexed = Transaction::query()->ownedBy($user)->whereNotNull('embedding')->get();
 
         if ($indexed->isEmpty()) {
             return $question;

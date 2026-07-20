@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
@@ -55,6 +56,17 @@ class Transaction extends Model
             self::SPENDING_ANSWERS_CACHE_VERSION_KEY,
             (int) Cache::get(self::SPENDING_ANSWERS_CACHE_VERSION_KEY, 0) + 1,
         );
+    }
+
+    /**
+     * Restrict a query to transactions owned by the given user. The single
+     * named call every user-facing read of this model's data is expected
+     * to go through, instead of each one repeating its own where('user_id',
+     * ...) and risking one that forgets to.
+     */
+    public function scopeOwnedBy(Builder $query, User $user): Builder
+    {
+        return $query->where('user_id', $user->id);
     }
 
     /**

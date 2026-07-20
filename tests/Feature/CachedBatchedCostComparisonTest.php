@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Ai\Agents\FinanceAssistant;
 use App\Ai\Agents\MonthlyReportSummarizer;
 use App\Models\ReportRequest;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Responses\Data\Meta;
@@ -31,6 +32,8 @@ class CachedBatchedCostComparisonTest extends TestCase
 
     public function test_the_same_scenario_costs_less_once_caching_and_batching_are_in_place(): void
     {
+        $user = User::factory()->create(['email' => 'user@example.com']);
+
         $tracedTokens = [];
 
         Log::shouldReceive('info')->andReturnUsing(function (string $message, array $context) use (&$tracedTokens) {
@@ -57,6 +60,7 @@ class CachedBatchedCostComparisonTest extends TestCase
         for ($i = 0; $i < 3; $i++) {
             $this->artisan('assistant:ask-spending', [
                 'question' => 'How much did I spend on restaurants this month?',
+                '--user' => $user->email,
             ])->assertExitCode(0);
         }
 

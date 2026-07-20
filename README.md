@@ -544,6 +544,46 @@ Tags for this chapter:
   git diff ch11-static-eval-dataset ch11-feedback-gated-eval-growth
   ```
 
+## Chapter 11 - caching frequent questions, batching non-urgent reports
+
+```bash
+php artisan assistant:ask-spending "How much did I spend on restaurants this month?"
+php artisan assistant:request-monthly-report
+php artisan assistant:process-report-queue
+```
+
+Neither `AskSpendingCommand` (Chapter 7) nor `GenerateMonthlyReportCommand` (Chapter 10) traced its
+model calls before this increment, so there was no way to measure what either actually cost. A
+first pass adds the same tracing already built in Chapter 6 to both, then uses it to measure a
+concrete scenario: the same spending question asked three times in a row, and this month's report
+requested three separate times, none of the six resulting calls avoided. Traced token cost:
+100 per question (three times), 190 per report (three times), 870 in total.
+
+The corrected version introduces caching for `AskSpendingCommand` and batching for monthly report
+requests. A question answered once is cached under a key that combines the normalized question text
+with a version counter incremented every time `App\Models\Transaction` gets a new row (see
+`Transaction::booted()`): asking again before any new transaction arrives is answered from cache, no
+model call, nothing traced; a single new transaction makes every previously cached answer
+unreachable at once. `assistant:request-monthly-report` no longer generates anything immediately: it
+only queues a request, and `assistant:process-report-queue` answers every pending request for the
+month with a single run of the existing `GenerateMonthlyReportCommand` pipeline, whether one request
+is pending or three. Running the exact same scenario measured above against this corrected version
+traces only two calls, 100 tokens for the one real question and 190 for the one real report: 290
+tokens total, against 870 before, for the same six original requests.
+
+Tags for this chapter:
+
+- `ch11-uncached-unbatched-cost` - adds `CallTrace` tracing to `AskSpendingCommand` and
+  `GenerateMonthlyReportCommand`, and a test measuring the scenario above at 870 tokens with nothing
+  cached or batched.
+- `ch11-cached-batched-cost` - adds caching to `AskSpendingCommand`, adds `ReportRequest`,
+  `assistant:request-monthly-report`, and `assistant:process-report-queue`, and re-measures the same
+  scenario at 290 tokens. Compare the two with:
+
+  ```bash
+  git diff ch11-uncached-unbatched-cost ch11-cached-batched-cost
+  ```
+
 ## Tag convention
 
 Tags follow `chNN-slug`, where `NN` is the two-digit chapter number. Multiple tags are added per

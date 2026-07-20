@@ -10,6 +10,13 @@ class Transaction extends Model
 {
     use HasFactory;
 
+    /**
+     * The cache key every spending answer (see AskSpendingCommand) is
+     * scoped to: a single shared constant, not a string literal repeated
+     * in both files, so the two can never silently drift apart.
+     */
+    public const SPENDING_ANSWERS_CACHE_VERSION_KEY = 'spending_answers_cache_version';
+
     protected $guarded = [];
 
     protected $casts = [
@@ -18,16 +25,36 @@ class Transaction extends Model
     ];
 
     /**
-     * Every cached spending answer (see AskSpendingCommand) is keyed on
-     * this version, not on this transaction alone: a new transaction can
-     * change the correct answer to a question that was asked before it
-     * existed, so incrementing it here makes every answer cached under
-     * the previous version unreachable, without tracking which specific
-     * questions it might affect.
+     * Every cached spending answer is keyed on this version, not on this
+     * transaction alone: a transaction being created, or an existing one
+     * being modified, for instance IndexTransactionsCommand giving it an
+     * embedding after the fact, can change the correct answer to a
+     * question asked before that change, so bumping it here makes every
+     * answer cached under the previous version unreachable, without
+     * tracking which specific questions it might affect.
      */
     protected static function booted(): void
     {
-        static::created(fn () => Cache::increment('spending_answers_cache_version'));
+        static::created(fn () => static::bumpSpendingAnswersCacheVersion());
+        static::updated(fn () => static::bumpSpendingAnswersCacheVersion());
+    }
+
+    /**
+     * A plain read-then-write, not Cache::increment(): this app's
+     * configured default cache store (database) does not create a
+     * missing key on increment, only array/redis-like stores do, so
+     * relying on increment alone would silently never bump this version
+     * under the store this app actually runs on. Not perfectly atomic
+     * under concurrent writes, an acceptable trade for a single-user
+     * application, in exchange for behaving the same way on every cache
+     * store instead of only some.
+     */
+    private static function bumpSpendingAnswersCacheVersion(): void
+    {
+        Cache::forever(
+            self::SPENDING_ANSWERS_CACHE_VERSION_KEY,
+            (int) Cache::get(self::SPENDING_ANSWERS_CACHE_VERSION_KEY, 0) + 1,
+        );
     }
 
     /**

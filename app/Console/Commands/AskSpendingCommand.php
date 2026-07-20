@@ -105,7 +105,7 @@ class AskSpendingCommand extends Command
      */
     private function cacheKey(string $question): string
     {
-        $version = Cache::get('spending_answers_cache_version', 0);
+        $version = Cache::get(Transaction::SPENDING_ANSWERS_CACHE_VERSION_KEY, 0);
 
         return sprintf('spending_answer:%d:%s', $version, md5(strtolower(trim($question))));
     }

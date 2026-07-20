@@ -561,10 +561,10 @@ requested three separate times, none of the six resulting calls avoided. Traced 
 
 The corrected version introduces caching for `AskSpendingCommand` and batching for monthly report
 requests. A question answered once is cached under a key that combines the normalized question text
-with a version counter incremented every time `App\Models\Transaction` gets a new row (see
-`Transaction::booted()`): asking again before any new transaction arrives is answered from cache, no
-model call, nothing traced; a single new transaction makes every previously cached answer
-unreachable at once. `assistant:request-monthly-report` no longer generates anything immediately: it
+with a version counter bumped every time `App\Models\Transaction` gets a new row or an existing one
+is modified (see `Transaction::booted()`): asking again before anything changes is answered from
+cache, no model call, nothing traced; a single new or modified transaction makes every previously
+cached answer unreachable at once. `assistant:request-monthly-report` no longer generates anything immediately: it
 only queues a request, and `assistant:process-report-queue` answers every pending request for the
 month with a single run of the existing `GenerateMonthlyReportCommand` pipeline, whether one request
 is pending or three. Running the exact same scenario measured above against this corrected version

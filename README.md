@@ -624,6 +624,41 @@ Tags for this chapter:
   git diff ch12-implicit-user-scope ch12-explicit-user-scope-and-audit
   ```
 
+## Chapter 12 - reviewing what data every model call sends, minimization, and disclosure
+
+```bash
+php artisan assistant:ask "How much did I spend this month?"
+php artisan assistant:log-expense-from-document "..."
+```
+
+This is the last increment of the companion repository. `DATA-SENT-TO-MODEL-AUDIT.md` reviews
+every command that calls a model and what data actually leaves the application in that call.
+Most calls already send only what the specific task needs, a side effect of choices earlier
+chapters made for other reasons (bounded, relevance-filtered RAG retrieval since Chapter 7,
+pre-aggregated report totals since Chapter 10, single-figure tool outputs since Chapter 8). Two
+gaps remained: `assistant:log-expense-from-document` sent an imported document to the model with
+no cap on its length, and no command ever disclosed to the user that they were talking to an
+automated system rather than a person.
+
+The corrected version caps an imported document to its first 4000 characters before it reaches
+the model, and adds a small shared trait that every command putting the user in direct
+conversation with an agent, one-off or ongoing, now uses to disclose that upfront, before
+anything else happens. No other command's business logic changes.
+
+Tags for this chapter:
+
+- `ch12-unminimized-undisclosed-calls` - adds `DATA-SENT-TO-MODEL-AUDIT.md`; tests show an
+  arbitrarily long imported document reaching the model in full and no command disclosing the
+  automated interaction.
+- `ch12-minimized-and-disclosed-calls` - adds the length cap to
+  `LogExpenseFromDocumentCommand` and the `DisclosesAiInteraction` trait, used by
+  `assistant:ask`, `assistant:ask-spending`, `assistant:ask-with-memory`, and `assistant:chat`.
+  Compare the two with:
+
+  ```bash
+  git diff ch12-unminimized-undisclosed-calls ch12-minimized-and-disclosed-calls
+  ```
+
 ## Tag convention
 
 Tags follow `chNN-slug`, where `NN` is the two-digit chapter number. Multiple tags are added per

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "7d0cc7b72c8e6e00324cfa73a3e792eb",
+    "content-hash": "60632bd4d49e4d5c8e78a30244143219",
     "packages": [
         {
             "name": "aws/aws-crt-php",
@@ -1210,16 +1210,16 @@
         },
         {
             "name": "laravel/ai",
-            "version": "v0.9.1",
+            "version": "v0.10.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/laravel/ai.git",
-                "reference": "2760a62bff6ab515cdf10222f61b7973356450e1"
+                "reference": "47f0ffdb86639f710eb93fcdf1bd07635599f270"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/laravel/ai/zipball/2760a62bff6ab515cdf10222f61b7973356450e1",
-                "reference": "2760a62bff6ab515cdf10222f61b7973356450e1",
+                "url": "https://api.github.com/repos/laravel/ai/zipball/47f0ffdb86639f710eb93fcdf1bd07635599f270",
+                "reference": "47f0ffdb86639f710eb93fcdf1bd07635599f270",
                 "shasum": ""
             },
             "require": {
@@ -1236,13 +1236,15 @@
                 "php": "^8.3"
             },
             "require-dev": {
+                "driftingly/rector-laravel": "^2.5",
                 "laravel/mcp": "^0.8",
                 "laravel/pint": "^1.26",
                 "mockery/mockery": "^1.6.12",
                 "orchestra/testbench": "^10.6|^11.0",
                 "pestphp/pest": "^3.0|^4.0",
                 "pestphp/pest-plugin-laravel": "^3.0|^4.0",
-                "phpstan/phpstan": "^2.1"
+                "phpstan/phpstan": "^2.1",
+                "rector/rector": "^2.5"
             },
             "suggest": {
                 "laravel/mcp": "Required to use MCP client tools or MCP server tools with Laravel AI agents."
@@ -1280,7 +1282,7 @@
                 "issues": "https://github.com/laravel/ai/issues",
                 "source": "https://github.com/laravel/ai"
             },
-            "time": "2026-07-14T18:41:31+00:00"
+            "time": "2026-07-21T17:48:17+00:00"
         },
         {
             "name": "laravel/framework",

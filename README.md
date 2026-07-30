@@ -11,7 +11,8 @@ it (see the root `.gitignore`).
 
 - PHP 8.5
 - Laravel 13
-- [`laravel/ai`](https://packagist.org/packages/laravel/ai) `^0.9`, default provider: OpenAI
+- [`laravel/ai`](https://packagist.org/packages/laravel/ai) `^0.9` (`^0.10` from Chapter 8's
+  native-tool-approval increment on), default provider: OpenAI
 - [`laravel/mcp`](https://packagist.org/packages/laravel/mcp) `^0.8` (from Chapter 9 on)
 
 ## Setup
@@ -310,6 +311,43 @@ Tags for this chapter:
 
   ```bash
   git diff ch08-guessed-purchase-assessment ch08-agentic-purchase-assessment
+  ```
+
+## Chapter 8 - native tool approval: the framework's own gate for a model-initiated cancellation
+
+```bash
+php artisan assistant:request-subscription-cancellation "Cancel my Streaming Plus subscription" --user=test@example.com
+```
+
+`RequiresApproval` (Chapter 5) gates an action the application itself constructs from known
+inputs; it has no way to gate an action the model decides to take mid-conversation, because none
+of its callers are conversational agents with persisted history. This increment adds a second,
+narrower agent for exactly that case: `App\Ai\Agents\SubscriptionCancellationAssistant`, a
+`Conversational` agent with a single tool, `App\Ai\Tools\CancelSubscriptionTool`. That tool
+implements `Laravel\Ai\Contracts\Approvable` and always requires approval (`needsApproval()`
+returns `Approval::required(...)`): when the assistant decides, from a plain natural-language
+request, to call it, generation pauses before the cancellation runs.
+`assistant:request-subscription-cancellation` shows the pending approval's reason and arguments,
+asks for an explicit confirmation with the same Laravel Prompts `confirm()` already used by
+`RequiresApproval`, and resumes the same conversation with the user's decision
+(`Decisions::from([...])`) before printing the final result. A rejection is logged the same way a
+`RequiresApproval` rejection is (`App\Support\AuditLog`), even though the tool's own `handle()`
+never runs for it.
+
+This is not a replacement for the Chapter 5 mechanism: `RequiresApproval`, `ProposedAction`, and
+`CancelSubscriptionCommand`/`TransferFundsCommand` are untouched, and `PurchaseAdvisor` (earlier in
+this chapter) still routes its own suggested cancellation through them exactly as before. The two
+mechanisms exist side by side, gating two different kinds of consequential action: one an
+application decides to propose, the other a model decides to invoke.
+
+Tags for this section:
+
+- `ch08-native-tool-approval` - adds `SubscriptionCancellationAssistant`, `CancelSubscriptionTool`,
+  and `RequestSubscriptionCancellationCommand`, bumps `laravel/ai` to `^0.10`. Compare against the
+  chapter's existing agentic baseline with:
+
+  ```bash
+  git diff ch08-agentic-purchase-assessment ch08-native-tool-approval
   ```
 
 ## Chapter 9 - MCP: an exchange-rate tool discovered from a server, not hand-declared
@@ -633,8 +671,8 @@ php artisan assistant:ask "How much did I spend this month?"
 php artisan assistant:log-expense-from-document "..."
 ```
 
-This is the last increment of the companion repository. `DATA-SENT-TO-MODEL-AUDIT.md` reviews
-every command that calls a model and what data actually leaves the application in that call.
+`DATA-SENT-TO-MODEL-AUDIT.md` reviews every command that calls a model and what data actually
+leaves the application in that call.
 Most calls already send only what the specific task needs, a side effect of choices earlier
 chapters made for other reasons (bounded, relevance-filtered RAG retrieval since Chapter 7,
 pre-aggregated report totals since Chapter 10, single-figure tool outputs since Chapter 8). Two

@@ -343,11 +343,14 @@ application decides to propose, the other a model decides to invoke.
 Tags for this section:
 
 - `ch08-native-tool-approval` - adds `SubscriptionCancellationAssistant`, `CancelSubscriptionTool`,
-  and `RequestSubscriptionCancellationCommand`, bumps `laravel/ai` to `^0.10`. Compare against the
-  chapter's existing agentic baseline with:
+  and `RequestSubscriptionCancellationCommand`, bumps `laravel/ai` to `^0.10`. This tag was added
+  after every later chapter's tags already existed, so diffing it against
+  `ch08-agentic-purchase-assessment` directly would also pull in every increment from Chapters 9
+  through 12 in between. Diff it against its own parent commit instead, to see only what this
+  increment adds:
 
   ```bash
-  git diff ch08-agentic-purchase-assessment ch08-native-tool-approval
+  git diff ch08-native-tool-approval^ ch08-native-tool-approval
   ```
 
 ## Chapter 9 - MCP: an exchange-rate tool discovered from a server, not hand-declared
